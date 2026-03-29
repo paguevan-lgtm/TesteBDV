@@ -159,11 +159,48 @@ export const IconButton = ({ onClick, icon:IconComp, theme, variant='default', c
     );
 };
 
-export const Input = ({ label, value, onChange, type='text', placeholder, theme, themeKey, autoFocus, onFocus, onBlur, autoCapitalize, mask, maxLength }: any) => {
+export const Input = ({ label, value, onChange, type='text', placeholder, theme, themeKey, autoFocus, onFocus, onBlur, autoCapitalize, mask, maxLength, speech }: any) => {
     // If theme not provided but themeKey is, get from THEMES
     const t = theme || (themeKey ? THEMES[themeKey] : THEMES.default);
     
     const [localValue, setLocalValue] = useState(value);
+    const [isListening, setIsListening] = useState(false);
+
+    const handleSpeech = () => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Seu navegador não suporta reconhecimento de voz.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setIsListening(true);
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            // Capitalize first letter
+            const formatted = transcript.charAt(0).toUpperCase() + transcript.slice(1);
+            setLocalValue(formatted);
+            onChange({ target: { value: formatted } });
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error("Speech recognition error", event.error);
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+
+        recognition.start();
+    };
 
     useEffect(() => {
         if (mask === 'date' && value && value.includes('-')) {
@@ -242,19 +279,31 @@ export const Input = ({ label, value, onChange, type='text', placeholder, theme,
     return (
         <div className="flex flex-col gap-1.5">
             {label && <label className="text-xs font-bold opacity-60 ml-1">{label}</label>}
-            <input 
-                type={type} 
-                lang="pt-BR"
-                className={`${t.inner || 'bg-black/20'} ${t.border || 'border border-white/10'} ${t.radius || 'rounded-xl'} px-4 py-3 text-sm outline-none focus:border-amber-500 transition-colors w-full`}
-                value={localValue} 
-                onChange={handleChange} 
-                placeholder={placeholder}
-                autoFocus={autoFocus}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                autoCapitalize={autoCapitalize}
-                maxLength={maxLength}
-            />
+            <div className="relative">
+                <input 
+                    type={type} 
+                    lang="pt-BR"
+                    className={`${t.inner || 'bg-black/20'} ${t.border || 'border border-white/10'} ${t.radius || 'rounded-xl'} px-4 py-3 text-sm outline-none focus:border-amber-500 transition-colors w-full ${speech ? 'pr-12' : ''}`}
+                    value={localValue} 
+                    onChange={handleChange} 
+                    placeholder={placeholder}
+                    autoFocus={autoFocus}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                    autoCapitalize={autoCapitalize}
+                    maxLength={maxLength}
+                />
+                {speech && (
+                    <button 
+                        type="button"
+                        onClick={handleSpeech}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-white/40 hover:text-white hover:bg-white/10'}`}
+                        title="Falar para preencher"
+                    >
+                        <Icons.Mic size={18} />
+                    </button>
+                )}
+            </div>
         </div>
     );
 };
