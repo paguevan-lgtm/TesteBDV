@@ -37,7 +37,6 @@ const AppContent = () => {
     const [view, setView] = useState('dashboard');
     const [menuOpen, setMenuOpen] = useState(false);
     const [data, setData] = useState<any>({ passengers: [], drivers: [], trips: [], notes: [], lostFound: [], blocked_ips: [], newsletter: [], users: [] });
-    const [currentIp, setCurrentIp] = useState(''); 
     
     // Estados Específicos
     const [spList, setSpList] = useState<any[]>([]);
@@ -84,6 +83,16 @@ const AppContent = () => {
     }, [user?.username]);
 
     const theme = useMemo(() => THEMES[themeKey] || THEMES.default, [themeKey]);
+
+    useEffect(() => {
+        if (theme && theme.palette && theme.palette.length > 0) {
+            const primaryColor = theme.palette[0];
+            const hoverColor = theme.palette[1] || primaryColor;
+            document.documentElement.style.setProperty('--scrollbar-color', primaryColor);
+            document.documentElement.style.setProperty('--scrollbar-hover-color', hoverColor);
+        }
+    }, [theme]);
+
     const [billingDate, setBillingDate] = useState(new Date());
     const [pricePerPassenger, setPricePerPassenger] = useState(4);
 
@@ -689,16 +698,6 @@ const AppContent = () => {
     }, [tourStep, runTour]);
 
     useEffect(() => {
-        fetch('https://ipwho.is/')
-            .then(r => r.json())
-            .then(d => {
-                if (d.success) setCurrentIp(d.ip);
-                else fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d2 => setCurrentIp(d2.ip)).catch(e => console.error("Erro IP Fallback:", e));
-            })
-            .catch(e => console.error("Erro IP Geo:", e));
-    }, []);
-
-    useEffect(() => {
         if(auth) {
             const unsub = auth.onAuthStateChanged((u: any) => {
                 setIsFireConnected(!!u);
@@ -1063,7 +1062,9 @@ const AppContent = () => {
                     const tableSnap = await db.ref(node).once('value');
                     const list = tableSnap.val();
                     if (list && Array.isArray(list)) {
-                        const clearedList = list.map((d: any) => ({
+                        // Remove copies that were appended the previous day
+                        const originalList = list.filter((d: any) => !d.isCopy);
+                        const clearedList = originalList.map((d: any) => ({
                             ...d,
                             time1: '',
                             time2: '',
@@ -1090,13 +1091,24 @@ const AppContent = () => {
 
     const getRotatedList = (dateStr: string) => {
         if (!spList || spList.length === 0) return [];
+        
+        // Separate original items and copies
+        const originalList = spList.filter((d: any) => !d.isCopy);
+        const copiesList = spList.filter((d: any) => d.isCopy);
+
+        if (originalList.length === 0) return copiesList;
+
         // Usa a data base dinâmica (vinda do Firebase) ou o fallback
         const start = new Date(`${rotationBaseDate}T00:00:00`).getTime(); 
         const current = new Date(dateStr + 'T00:00:00').getTime();
         const diff = Math.floor((current - start) / (86400000));
-        const len = spList.length;
+        const len = originalList.length;
         const mod = ((diff % len) + len) % len;
-        return [...spList.slice(mod), ...spList.slice(0, mod)];
+        
+        const rotatedOriginals = [...originalList.slice(mod), ...originalList.slice(0, mod)];
+        
+        // Append copies at the end
+        return [...rotatedOriginals, ...copiesList];
     };
 
     // NOVA FUNÇÃO: Rotação independente da Madrugada
@@ -1519,8 +1531,8 @@ const AppContent = () => {
         notify("Salvo!", "success"); 
     };
 
-    const updateMipDriver = (vaga: string, payload: any) => {
-        const newList = spList.map((d:any) => d.vaga === vaga ? { ...d, ...payload } : d);
+    const updateMipDriver = (id: string, payload: any) => {
+        const newList = spList.map((d:any) => d.id === id ? { ...d, ...payload } : d);
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
         let node = tableSystemContext === 'Mip' ? (tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6') : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
         db.ref(node).set(newList);
@@ -1528,8 +1540,9 @@ const AppContent = () => {
         // --- Lógica de Viagem Temporária (Apenas para MIP) ---
         // Se tableSystemContext for 'Mip' OU se a aba atual for de MIP (mip6 ou mip18), devemos processar
         if (tableSystemContext === 'Mip' || tableTab.startsWith('mip')) {
-            const driver = newList.find((d:any) => d.vaga === vaga);
+            const driver = newList.find((d:any) => d.id === id);
             if (driver) {
+                const vaga = driver.vaga;
                 const tripsPath = `Mip/trips`;
 
                 // We need to track used IDs in this batch to avoid collisions
@@ -1673,12 +1686,13 @@ const AppContent = () => {
         }
     };
 
-    const handleMipBaixar = (vaga: string) => {
+    const handleMipBaixar = (id: string) => {
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
         if (tableSystemContext !== 'Mip') return;
 
-        const driver = spList.find((d:any) => d.vaga === vaga);
+        const driver = spList.find((d:any) => d.id === id);
         if (!driver) return;
+        const vaga = driver.vaga;
 
         // Determine source and target nodes
         let sourceNode = tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6';
@@ -1692,16 +1706,15 @@ const AppContent = () => {
         // Se já baixou, CANCELAR (remover a cópia e desmarcar original)
         if (driver.baixou) {
             // 1. Desmarcar original na SOURCE
-            const newList = spList.map((d:any) => d.vaga === vaga ? { ...d, baixou: false } : d);
+            const newList = spList.map((d:any) => d.id === id ? { ...d, baixou: false } : d);
             db.ref(sourceNode).set(newList);
 
             // 2. Remover a ÚLTIMA cópia criada na TARGET
             db.ref(targetNode).once('value', (snap) => {
                 const list = snap.val() || [];
-                // Encontra o índice da última ocorrência desse motorista que NÃO é a original (ou seja, tem id diferente ou está no fim)
-                // Simplificação: removemos a última entrada que tem a mesma vaga e NÃO está marcada como baixou (pois a cópia nasce com baixou=false)
+                // Encontra o índice da última ocorrência desse motorista que é uma cópia
                 const reverseList = [...list].reverse();
-                const indexToRemove = reverseList.findIndex((d:any) => d.vaga === vaga && !d.baixou);
+                const indexToRemove = reverseList.findIndex((d:any) => d.vaga === vaga && d.isCopy);
                 
                 if (indexToRemove !== -1) {
                     const realIndex = list.length - 1 - indexToRemove;
@@ -1709,6 +1722,16 @@ const AppContent = () => {
                     newListWithoutCopy.splice(realIndex, 1);
                     db.ref(targetNode).set(newListWithoutCopy);
                     notify("Baixar cancelado!", "info");
+                } else {
+                    // Fallback if no isCopy flag (for older copies)
+                    const fallbackIndex = reverseList.findIndex((d:any) => d.vaga === vaga && !d.baixou && d.id !== driver.id);
+                    if (fallbackIndex !== -1) {
+                        const realIndex = list.length - 1 - fallbackIndex;
+                        const newListWithoutCopy = [...list];
+                        newListWithoutCopy.splice(realIndex, 1);
+                        db.ref(targetNode).set(newListWithoutCopy);
+                        notify("Baixar cancelado!", "info");
+                    }
                 }
             });
             return;
@@ -1716,7 +1739,7 @@ const AppContent = () => {
 
         // EXECUTAR BAIXAR (Criar cópia e marcar original)
         // 1. Mark original in SOURCE
-        const newListWithBaixou = spList.map((d:any) => d.vaga === vaga ? { ...d, baixou: true } : d);
+        const newListWithBaixou = spList.map((d:any) => d.id === id ? { ...d, baixou: true } : d);
         db.ref(sourceNode).set(newListWithBaixou);
 
         // 2. Create copy in TARGET
@@ -1728,7 +1751,8 @@ const AppContent = () => {
             riscado: false, 
             time1: '', 
             time2: '', 
-            num: '' 
+            num: '',
+            isCopy: true
         };
         
         db.ref(targetNode).once('value', (snap) => {
@@ -1739,17 +1763,17 @@ const AppContent = () => {
         notify("Baixou!", "success");
     };
 
-    const handleMipRiscar = (vaga: string) => {
+    const handleMipRiscar = (id: string) => {
         const oldList = [...spList];
-        const driver = spList.find((d:any) => d.vaga === vaga);
+        const driver = spList.find((d:any) => d.id === id);
         
         triggerUndo(() => {
             const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
             let node = tableSystemContext === 'Mip' ? (tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6') : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
             db.ref(node).set(oldList);
-        }, `Vaga ${vaga} ${driver?.riscado ? 'desmarcada' : 'riscada'}`);
+        }, `Vaga ${driver?.vaga || ''} ${driver?.riscado ? 'desmarcada' : 'riscada'}`);
 
-        const newList = spList.map((d:any) => d.vaga === vaga ? { ...d, riscado: !d.riscado } : d);
+        const newList = spList.map((d:any) => d.id === id ? { ...d, riscado: !d.riscado } : d);
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
         let node = tableSystemContext === 'Mip' ? (tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6') : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
         db.ref(node).set(newList);

@@ -4,6 +4,7 @@ import { Input, Toast, Icons, Button } from '../components/Shared';
 import { useAuth } from '../contexts/AuthContext';
 import { USERS_DB } from '../constants'; 
 import { db, auth } from '../firebase';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
     const { login } = useAuth(); 
@@ -16,13 +17,20 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
     // Notification State
     const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
 
-    // Animação States
+    // Animation States
     const [focusField, setFocusField] = useState<'user' | 'pass' | null>(null);
     const [isTyping, setIsTyping] = useState(false);
     const [isZooming, setIsZooming] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
     
     // Geo Modal State
     const [showGeoPrompt, setShowGeoPrompt] = useState(false);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         let timeout: any;
@@ -41,21 +49,17 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
         setIsTyping(true);
     };
 
-    // 1. Primeiro passo: Validar credenciais (Local + DB) e Checar Permissão
     const handlePreLogin = async () => {
         if(!username || !password) return notify("Preencha usuário e senha", "error");
         
         setLoading(true);
         let userExists = false;
 
-        // A. Verificação Local (Constants)
         if (USERS_DB[username] && USERS_DB[username].pass === password) {
             userExists = true;
         }
 
-        // B. Verificação no Banco de Dados (Firebase)
         if (!userExists && db) {
-            // FIX: Ensure Auth is active to satisfy DB rules (read auth != null)
             if (auth && !auth.currentUser) {
                 try {
                     await auth.signInAnonymously();
@@ -70,7 +74,6 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
                 const snapshot = await db.ref('users').once('value');
                 const users = snapshot.val();
                 if (users) {
-                    // Busca case-insensitive para username, exata para senha
                     const found = Object.values(users).some((u:any) => 
                         u.username && u.username.toLowerCase() === username.toLowerCase() && 
                         u.pass === password
@@ -89,24 +92,9 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
             return;
         }
 
-        // Exigir geolocalização imediatamente
-        if (navigator.permissions) {
-            try {
-                const result = await navigator.permissions.query({ name: 'geolocation' });
-                if (result.state === 'granted') {
-                    executeGeoLogin();
-                } else {
-                    setShowGeoPrompt(true);
-                }
-            } catch (e) {
-                setShowGeoPrompt(true);
-            }
-        } else {
-            setShowGeoPrompt(true);
-        }
+        startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
     };
 
-    // Função centralizada para pegar Geo e Logar
     const executeGeoLogin = () => {
         setLoading(true);
         setGeoStatus('Sincronizando satélites...');
@@ -120,19 +108,15 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
 
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                // SUCESSO
                 const { latitude, longitude, accuracy } = pos.coords;
                 setShowGeoPrompt(false); 
                 startEntrySequence({ latitude, longitude, accuracy });
             },
             (err) => {
-                // ERRO
                 console.warn("Geo bloqueada:", err);
                 setLoading(false);
                 setGeoStatus('');
-                // Se falhar (ex: usuario negou no browser mesmo após clicar em permitir no modal), avisa
                 notify("Não foi possível obter localização. Verifique as permissões do navegador.", "error");
-                // Força o modal a aparecer caso tenha sido ocultado, para tentar de novo
                 setShowGeoPrompt(true);
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -141,24 +125,31 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
 
     const startEntrySequence = (coords: any) => {
         setGeoStatus('Motor ligado. Iniciando...');
-        setIsZooming(true); // Launch animation
+        setIsZooming(true); 
 
         setTimeout(async () => {
             await login(username, password, coords);
-        }, 1000); 
+        }, 1200); 
     };
 
     return (
-        <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950 ${isTyping ? 'typing' : ''} ${isZooming ? 'zooming' : ''} p-6 text-white overflow-hidden`}>
+        <div className="fixed inset-0 z-[100] bg-slate-950 text-white overflow-hidden">
             
             <Toast message={notification.message} type={notification.type} visible={notification.visible} />
 
-            {/* Road Effect Background */}
-            <div className="road-container">
-                <div className="road-grid"></div>
+            {/* Immersive Scene */}
+            <div className="login-scene">
+                <div className="stars-container"></div>
+                <div className="ambient-glow"></div>
+                <div className="distant-mountains"></div>
+                <div className="horizon-line"></div>
+                <div className="road-perspective">
+                    <div className="road-glow"></div>
+                </div>
             </div>
 
-            {onBack && (
+            <div className="relative z-10 w-full h-full overflow-y-auto flex flex-col items-center justify-center p-6">
+                {onBack && (
                 <button 
                     onClick={onBack}
                     className="absolute top-6 left-6 z-50 text-white/50 hover:text-white flex items-center gap-2 transition-colors group"
@@ -170,87 +161,115 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
                 </button>
             )}
 
-            <div className={`mb-4 flex flex-col items-center relative z-20 transition-all duration-500`}>
-                
-                {/* NEW FIXED MIRROR VAN WRAPPER */}
-                <div className={`van-wrapper ${focusField === 'user' ? 'focus-user' : ''} ${focusField === 'pass' ? 'focus-pass' : ''} ${isTyping ? 'engine-on' : ''}`}>
-                    
-                    {/* Mirrors attached to the wrapper, positioned absolutely behind A-pillars */}
-                    <div className="mirror-assembly left">
-                        <div className="mirror-housing"><div className="mirror-signal"></div></div>
-                        <div className="mirror-arm"></div>
-                    </div>
-                    <div className="mirror-assembly right">
-                        <div className="mirror-housing"><div className="mirror-signal"></div></div>
-                        <div className="mirror-arm"></div>
-                    </div>
+            {/* Van Scene */}
+            <div className="relative z-10 mb-12 flex flex-col items-center">
+                <motion.div 
+                    className="van-container"
+                    animate={{
+                        y: isZooming ? -500 : (focusField === 'pass' ? 10 : (isTyping ? [0, -2, 0] : 0)),
+                        rotate: isTyping && !isZooming ? [0, 0.3, 0] : 0,
+                        rotateX: focusField === 'pass' ? 5 : 0,
+                        scale: isZooming ? 0.1 : (isMobile ? 0.65 : 1),
+                        opacity: isZooming ? 0 : 1
+                    }}
+                    transition={{ 
+                        y: isTyping && !isZooming ? { repeat: Infinity, duration: 0.2 } : { type: 'spring', stiffness: 300, damping: 20 },
+                        rotate: isTyping && !isZooming ? { repeat: Infinity, duration: 0.2 } : { duration: 0.3 },
+                        scale: { duration: 0.5 },
+                        opacity: { duration: 0.5 }
+                    }}
+                >
+                    {/* Mirrors */}
+                    <div className="van-mirror left"></div>
+                    <div className="van-mirror right"></div>
 
-                    <div className="van-body">
-                        {/* Roof */}
-                        <div className="roof">
-                            <div className="marker-lights">
-                                <div className="marker-light"></div>
-                                <div className="marker-light"></div>
-                                <div className="marker-light"></div>
-                            </div>
+                    {/* Body */}
+                    <div className="van-main-body">
+                        <div className="van-roof-rack"></div>
+                        
+                        {/* Windshield with reaction */}
+                        <motion.div 
+                            className="van-windshield"
+                            animate={{
+                                background: focusField === 'pass' 
+                                    ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' 
+                                    : 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)'
+                            }}
+                        ></motion.div>
+
+                        {/* Headlights with reaction */}
+                        <div className={`van-headlight left ${focusField === 'user' ? 'on' : ''}`}></div>
+                        <div className={`van-headlight right ${focusField === 'user' ? 'on' : ''}`}></div>
+
+                        {/* Grille & Plate */}
+                        <div className="van-grille">
+                            <div className="van-plate">BOR4V4N</div>
                         </div>
 
-                        {/* Windshield */}
-                        <div className="windshield"></div>
+                        <div className="van-bumper"></div>
 
-                        {/* Fascia */}
-                        <div className="front-fascia">
-                            <div className="grille-unit">
-                                <div className="headlight-unit left">
-                                    <div className="drl-strip"></div>
-                                    <div className="projector-lens"></div>
-                                    <div className="beam-cone left"></div>
-                                </div>
-                                
-                                <div className="main-grille">
-                                    <div className="logo-badge"></div>
-                                </div>
-
-                                <div className="headlight-unit right">
-                                    <div className="drl-strip"></div>
-                                    <div className="projector-lens"></div>
-                                    <div className="beam-cone right"></div>
-                                </div>
+                        {/* Exhaust Smoke */}
+                        {isTyping && (
+                            <div className="van-exhaust">
+                                {[...Array(8)].map((_, i) => (
+                                    <div 
+                                        key={i} 
+                                        className="smoke-particle" 
+                                        style={{ 
+                                            animationDelay: `${i * 0.1}s`,
+                                            left: `${Math.random() * 10 - 5}px`
+                                        }}
+                                    ></div>
+                                ))}
                             </div>
-
-                            <div className="bumper">
-                                <div className="fog-light"></div>
-                                <div className="plate-box">BORADEVAN</div>
-                                <div className="fog-light"></div>
-                            </div>
-                        </div>
+                        )}
                     </div>
-                </div>
 
-                <div className={`transition-all duration-500 ${isZooming ? 'opacity-0 scale-90' : 'opacity-100'}`}>
-                    <h1 className="text-3xl font-black mb-1 tracking-tighter text-white drop-shadow-lg text-center uppercase italic">Bora de Van</h1>
-                    <div className="flex items-center justify-center gap-2 opacity-60">
-                        <div className="h-[1px] w-8 bg-amber-500"></div>
-                        <p className="text-[10px] font-bold tracking-[0.3em] uppercase">System v4.0</p>
-                        <div className="h-[1px] w-8 bg-amber-500"></div>
+                    {/* Wheels */}
+                    <div className={`van-wheel left ${isTyping ? 'wheel-blur' : ''}`}></div>
+                    <div className={`van-wheel right ${isTyping ? 'wheel-blur' : ''}`}></div>
+                </motion.div>
+
+                {/* Title */}
+                <motion.div 
+                    className="mt-8 text-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                >
+                    <h1 className="text-4xl font-black tracking-tighter text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] uppercase italic">Bora de Van</h1>
+                    <div className="flex items-center justify-center gap-3 mt-2">
+                        <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-amber-500"></div>
+                        <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-amber-500">Premium Fleet</p>
+                        <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-amber-500"></div>
                     </div>
-                </div>
+                </motion.div>
             </div>
 
-            <div className={`w-full max-w-xs space-y-4 bg-slate-950/80 p-6 rounded-2xl border border-white/5 backdrop-blur-xl shadow-2xl stagger-in d-1 relative z-20 transition-all duration-500 ${isZooming ? 'translate-y-40 opacity-0' : 'opacity-100'}`}>
+            {/* Login Form */}
+            <motion.div 
+                className={`w-full max-w-sm space-y-5 bg-slate-900/40 p-6 sm:p-8 rounded-3xl border border-white/10 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative z-20`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ 
+                    opacity: isZooming ? 0 : 1, 
+                    scale: isZooming ? 0.8 : 1,
+                    y: isZooming ? 100 : 0
+                }}
+                transition={{ duration: 0.5 }}
+            >
                 <div onFocus={() => setFocusField('user')} onBlur={() => setFocusField(null)}>
                     <Input 
-                        theme={{text: 'text-white', radius: 'rounded-lg', border: 'border-white/10'}} 
+                        theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
                         label="ID Operador" 
                         value={username} 
                         onChange={(e:any) => { setUsername(e.target.value); handleTyping(); }} 
                         autoCapitalize="none"
-                        placeholder="Nome de usuário"
+                        placeholder="Seu usuário"
                     />
                 </div>
                 <div onFocus={() => setFocusField('pass')} onBlur={() => setFocusField(null)}>
                     <Input 
-                        theme={{text: 'text-white', radius: 'rounded-lg', border: 'border-white/10'}} 
+                        theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
                         label="Chave de Acesso" 
                         type="password" 
                         value={password} 
@@ -259,56 +278,76 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
                     />
                 </div>
                 
-                {geoStatus && <p className="text-[10px] uppercase tracking-wider text-center text-amber-400 animate-pulse font-bold">{geoStatus}</p>}
+                {geoStatus && (
+                    <motion.p 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-[10px] uppercase tracking-widest text-center text-amber-400 font-black"
+                    >
+                        {geoStatus}
+                    </motion.p>
+                )}
 
                 <Button 
                     onClick={handlePreLogin}
                     disabled={loading}
                     loading={loading}
-                    className="w-full bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-500 hover:to-orange-600 text-white font-black italic uppercase tracking-wider py-3.5 shadow-lg hover:shadow-orange-500/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] mt-2"
+                    variant="primary"
+                    theme={{ primary: 'bg-amber-500 text-slate-950', radius: 'rounded-xl' }}
+                    className="w-full font-black italic uppercase tracking-widest py-4 shadow-[0_0_30px_rgba(251,191,36,0.3)] transition-all transform hover:scale-[1.02] active:scale-[0.98] mt-4"
                 >
-                    Validar Acesso
+                    Iniciar Viagem
                 </Button>
-            </div>
+            </motion.div>
             
-            <p className={`text-[9px] text-slate-500 mt-6 relative z-20 font-mono transition-opacity ${isZooming ? 'opacity-0' : ''}`}>SECURE CONNECTION ESTABLISHED</p>
+            <p className="text-[9px] text-slate-500 mt-8 relative z-20 font-mono tracking-widest opacity-50">SYSTEM VERSION 4.0.2 // ENCRYPTED SESSION</p>
 
             {/* GEO PROMPT MODAL */}
-            {showGeoPrompt && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-6 backdrop-blur-md animate-fade-in">
-                    <div className="w-full max-w-sm bg-[#1e293b] border border-amber-500/30 rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center relative overflow-hidden">
-                        
-                        {/* Glow effect */}
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
-
-                        <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mb-4 text-amber-500 animate-pulse">
-                            <Icons.Map size={32} />
-                        </div>
-
-                        <h3 className="text-xl font-bold text-white mb-2">Localização Obrigatória</h3>
-                        <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-                            Para segurança da operação, precisamos registrar sua localização exata antes de liberar o painel.
-                        </p>
-
-                        <Button 
-                            onClick={executeGeoLogin}
-                            disabled={loading}
-                            loading={loading}
-                            className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95"
+            <AnimatePresence>
+                {showGeoPrompt && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 p-6 backdrop-blur-xl"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden"
                         >
-                            {loading ? 'Verificando...' : 'Permitir e Entrar'}
-                        </Button>
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
 
-                        <button 
-                            onClick={() => { setShowGeoPrompt(false); setLoading(false); setGeoStatus(''); }}
-                            className="mt-4 text-xs text-slate-500 hover:text-white transition-colors"
-                        >
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
-            )}
+                            <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 text-amber-500">
+                                <Icons.Map size={40} />
+                            </div>
 
+                            <h3 className="text-2xl font-black text-white mb-3 uppercase italic">Localização</h3>
+                            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                                Protocolo de segurança ativado. Precisamos confirmar sua posição geográfica para autorizar o acesso.
+                            </p>
+
+                            <Button 
+                                onClick={executeGeoLogin}
+                                disabled={loading}
+                                loading={loading}
+                                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 uppercase tracking-widest"
+                            >
+                                {loading ? 'Sincronizando...' : 'Confirmar Posição'}
+                            </Button>
+
+                            <button 
+                                onClick={() => { setShowGeoPrompt(false); setLoading(false); setGeoStatus(''); }}
+                                className="mt-6 text-xs text-slate-500 hover:text-white transition-colors uppercase font-bold tracking-widest"
+                            >
+                                Abortar
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            </div>
         </div>
     );
 };

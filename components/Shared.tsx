@@ -315,12 +315,12 @@ export const ClockWidget = ({ theme }: any) => {
         return () => clearInterval(int);
     }, []);
     return (
-        <div className={`${theme.card} p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full`}>
-            <div className="text-3xl font-black tabular-nums tracking-tighter">
+        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center`}>
+            <div className="text-2xl sm:text-3xl font-black tabular-nums tracking-tighter">
                 {time.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
             </div>
-            <div className="text-xs opacity-50 uppercase font-bold tracking-widest">
-                {time.toLocaleDateString('pt-BR', {weekday: 'long', day: '2-digit', month: 'short'})}
+            <div className="text-[9px] sm:text-xs opacity-60 uppercase font-bold tracking-wider mt-1 leading-tight">
+                {time.toLocaleDateString('pt-BR', {weekday: 'short', day: '2-digit', month: 'short'}).replace('.', '')}
             </div>
         </div>
     );
@@ -353,7 +353,7 @@ export const WeatherWidget = ({ theme, location }: any) => {
         return () => clearInterval(interval);
     }, [location]);
 
-    if (loading) return <div className={`${theme.card} p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full`}>...</div>;
+    if (loading) return <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center`}>...</div>;
     if (!weather) return null;
 
     const getWeatherInfo = (code: number, isDay: number) => {
@@ -378,11 +378,11 @@ export const WeatherWidget = ({ theme, location }: any) => {
     const info = getWeatherInfo(weather.weather_code, weather.is_day);
     
     return (
-        <div className={`${theme.card} p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full relative overflow-hidden group`}>
+        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full relative overflow-hidden group text-center`}>
             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="text-3xl mb-1 animate-pulse-slow">{info.icon}</div>
-            <div className="text-xs font-bold opacity-70">{location}</div>
-            <div className="text-[10px] opacity-40">{weather.temperature_2m}°C • {info.label}</div>
+            <div className="text-2xl sm:text-3xl mb-1 animate-pulse-slow">{info.icon}</div>
+            <div className="text-[10px] sm:text-xs font-bold opacity-80 leading-tight">{location}</div>
+            <div className="text-[9px] sm:text-[10px] opacity-50 mt-0.5 leading-tight">{weather.temperature_2m}°C • {info.label}</div>
         </div>
     );
 };

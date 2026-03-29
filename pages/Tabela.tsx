@@ -324,19 +324,19 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                                                     <input 
                                                                         className="w-14 bg-black/40 border border-white/10 rounded px-1 py-1 text-xs font-mono text-center outline-none focus:border-white/30 hide-on-print"
                                                                         value={driver.time1 || ''}
-                                                                        onChange={(e) => updateMipDriver(driver.vaga, { time1: e.target.value })}
+                                                                        onChange={(e) => updateMipDriver(driver.id, { time1: e.target.value })}
                                                                         placeholder="00:00"
                                                                     />
                                                                     <input 
                                                                         className="w-14 bg-black/40 border border-white/10 rounded px-1 py-1 text-xs font-mono text-center outline-none focus:border-white/30 hide-on-print"
                                                                         value={driver.time2 || ''}
-                                                                        onChange={(e) => updateMipDriver(driver.vaga, { time2: e.target.value })}
+                                                                        onChange={(e) => updateMipDriver(driver.id, { time2: e.target.value })}
                                                                         placeholder="00:00"
                                                                     />
                                                                     <input 
                                                                         className="w-8 bg-black/40 border border-white/10 rounded px-1 py-1 text-xs font-mono text-center outline-none focus:border-white/30 hide-on-print"
                                                                         value={driver.num || ''}
-                                                                        onChange={(e) => updateMipDriver(driver.vaga, { num: e.target.value })}
+                                                                        onChange={(e) => updateMipDriver(driver.id, { num: e.target.value })}
                                                                         placeholder="Nº"
                                                                     />
 
@@ -379,7 +379,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                                     )}
                                                     {!isBlocked && (
                                                         <button 
-                                                            onClick={() => handleMipRiscar(driver.vaga)} 
+                                                            onClick={() => handleMipRiscar(driver.id)} 
                                                             className={`p-1.5 rounded-lg border transition-all hide-on-print ${driver.riscado ? 'bg-red-500 text-white border-red-500' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'}`}
                                                             title="Riscar"
                                                         >
@@ -387,7 +387,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                                         </button>
                                                     )}
                                                     <button 
-                                                        onClick={() => handleMipBaixar(driver.vaga)} 
+                                                        onClick={() => handleMipBaixar(driver.id)} 
                                                         className={`p-1.5 border rounded-lg transition-all hide-on-print ${driver.baixou ? 'bg-orange-500 text-white border-orange-500' : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'}`}
                                                         title={driver.baixou ? "Cancelar Baixar" : "Baixar"}
                                                     >

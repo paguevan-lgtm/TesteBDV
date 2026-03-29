@@ -16,56 +16,301 @@
   background: var(--scrollbar-hover-color, #2563eb);
 }
 
-/* Login Screen Animations */
-.road-container {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 200px;
-    background: #1e293b;
-    overflow: hidden;
+/* Login Screen - New Immersive Scene */
+.login-scene {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 100%, #1e1b4b 0%, #0f172a 100%);
+  overflow: hidden;
 }
 
-.road-grid {
+.ambient-glow {
+  position: absolute;
+  bottom: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150%;
+  height: 50%;
+  background: radial-gradient(ellipse at center, rgba(79, 70, 229, 0.15) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.distant-mountains {
+  position: absolute;
+  bottom: 30%;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 100' preserveAspectRatio='none'%3E%3Cpath d='M0,100 L0,80 L100,40 L250,70 L400,20 L600,60 L750,30 L900,80 L1000,50 L1000,100 Z' fill='%23020617'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  opacity: 0.8;
+}
+
+.stars-container {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
+    radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+    radial-gradient(1px 1px at 50px 160px, #fff, rgba(0,0,0,0)),
+    radial-gradient(1px 1px at 90px 40px, #fff, rgba(0,0,0,0));
+  background-repeat: repeat;
+  background-size: 300px 300px;
+  opacity: 0.2;
+}
+
+.horizon-line {
+  position: absolute;
+  bottom: 30%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(79, 70, 229, 0.3), transparent);
+}
+
+.road-perspective {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 30%;
+  background: #020617;
+  clip-path: polygon(45% 0%, 55% 0%, 100% 100%, 0% 100%);
+}
+
+.road-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, rgba(79, 70, 229, 0.05));
+}
+
+/* Detailed Van Styling */
+.van-container {
+  position: relative;
+  width: 320px;
+  height: 200px;
+  z-index: 10;
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+@media (max-width: 640px) {
+  .van-container {
+    margin-bottom: -60px;
+  }
+  
+  .road-perspective {
     width: 200%;
-    height: 100%;
-    background-image: linear-gradient(to right, #334155 1px, transparent 1px),
-                      linear-gradient(to bottom, #334155 1px, transparent 1px);
-    background-size: 40px 40px;
-    animation: moveRoad 2s linear infinite;
+    clip-path: polygon(48% 0%, 52% 0%, 100% 100%, 0% 100%);
+  }
+  
+  .distant-mountains {
+    bottom: 25%;
+    height: 50px;
+  }
+  
+  .horizon-line {
+    bottom: 25%;
+  }
 }
 
-@keyframes moveRoad {
-    from { transform: translateX(0); }
-    to { transform: translateX(-40px); }
+.van-main-body {
+  position: absolute;
+  inset: 0;
+  background: #f8fafc;
+  border-radius: 40px 40px 15px 15px;
+  box-shadow: 
+    inset 0 -10px 20px rgba(0,0,0,0.1),
+    0 20px 40px rgba(0,0,0,0.4);
+  overflow: hidden;
+  border: 2px solid #e2e8f0;
 }
 
-.van-wrapper {
-    position: relative;
-    width: 300px;
-    height: 150px;
-    transition: transform 0.3s ease;
+.van-roof-rack {
+  position: absolute;
+  top: -10px;
+  left: 40px;
+  right: 40px;
+  height: 15px;
+  background: #475569;
+  border-radius: 5px;
 }
 
-.van-wrapper.engine-on {
-    animation: shake 0.1s infinite;
+.van-windshield {
+  position: absolute;
+  top: 20px;
+  left: 15px;
+  right: 15px;
+  height: 70px;
+  background: linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%);
+  border-radius: 20px;
+  border: 4px solid #1e293b;
+  overflow: hidden;
 }
 
-@keyframes shake {
-    0% { transform: translate(1px, 1px); }
-    100% { transform: translate(-1px, -1px); }
+.van-windshield::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+  transform: skewX(-20deg);
+  animation: reflectionMove 3s ease-in-out infinite;
 }
 
-/* Van Parts */
-.van-body { width: 100%; height: 100%; background: #f8fafc; border-radius: 20px; position: relative; }
-.roof { height: 30px; background: #e2e8f0; border-radius: 10px 10px 0 0; }
-.windshield { height: 40px; background: #cbd5e1; margin: 0 10px; }
-.front-fascia { height: 80px; background: #f1f5f9; display: flex; flex-direction: column; align-items: center; }
-.grille-unit { display: flex; gap: 10px; }
-.headlight-unit { width: 40px; height: 20px; background: #94a3b8; }
-.main-grille { width: 100px; height: 30px; background: #475569; }
-.bumper { height: 20px; background: #64748b; width: 100%; }
-.mirror-assembly { position: absolute; top: 40px; width: 30px; height: 20px; background: #475569; }
-.mirror-assembly.left { left: -30px; }
-.mirror-assembly.right { right: -30px; }
+@keyframes reflectionMove {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+.van-grille {
+  position: absolute;
+  bottom: 30px;
+  left: 60px;
+  right: 60px;
+  height: 40px;
+  background: #1e293b;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #475569;
+}
+
+.van-plate {
+  width: 80px;
+  height: 24px;
+  background: #fbbf24;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: #1e293b;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.van-headlight {
+  position: absolute;
+  bottom: 35px;
+  width: 45px;
+  height: 30px;
+  background: #e2e8f0;
+  border-radius: 15px;
+  border: 3px solid #1e293b;
+  transition: all 0.3s ease;
+}
+
+.van-headlight.left { left: 10px; }
+.van-headlight.right { right: 10px; }
+
+.van-headlight.on {
+  background: #fff;
+  box-shadow: 0 0 30px #fff, 0 0 60px #fbbf24;
+}
+
+.van-headlight.on::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 150px;
+  background: radial-gradient(circle at center, rgba(251, 191, 36, 0.4) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.van-headlight.left.on::after { transform: translate(-80%, -50%) rotate(-10deg); }
+.van-headlight.right.on::after { transform: translate(-20%, -50%) rotate(10deg); }
+
+.van-exhaust {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  z-index: 5;
+}
+
+.smoke-particle {
+  position: absolute;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  filter: blur(5px);
+  animation: smokeRise 1s ease-out forwards;
+}
+
+@keyframes smokeRise {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  100% { transform: translate(-20px, -40px) scale(4); opacity: 0; }
+}
+
+.van-bumper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25px;
+  background: #334155;
+  border-radius: 0 0 15px 15px;
+}
+
+.van-wheel {
+  position: absolute;
+  bottom: -15px;
+  width: 50px;
+  height: 50px;
+  background: #0f172a;
+  border-radius: 50%;
+  border: 6px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.van-wheel.left { left: 40px; }
+.van-wheel.right { right: 40px; }
+
+.van-wheel::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  background: #475569;
+  border-radius: 50%;
+}
+
+.van-mirror {
+  position: absolute;
+  top: 40px;
+  width: 25px;
+  height: 35px;
+  background: #1e293b;
+  border-radius: 10px;
+  border: 2px solid #475569;
+}
+
+.van-mirror.left { left: -25px; border-radius: 10px 0 0 10px; }
+.van-mirror.right { right: -25px; border-radius: 0 10px 10px 0; }
+
+/* Animations for reactions */
+.wheel-blur {
+  filter: blur(2px);
+  animation: wheelSpin 0.1s linear infinite;
+}
+
+@keyframes wheelSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -261,10 +261,10 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                         {/* Wrapper para garantir que o ícone fique alinhado ao topo, à direita do texto */}
                         <div className="flex justify-between items-start mb-3 gap-2">
                             {/* FIX: Usar text-current ou theme.text em vez de text-white para suportar temas claros */}
-                            <h1 className="text-3xl md:text-4xl font-black tracking-tight drop-shadow-md leading-tight max-w-[85%] text-white mix-blend-hard-light">
+                            <h1 className="text-3xl md:text-4xl font-black tracking-tight drop-shadow-md leading-tight max-w-[85%] text-white">
                                 {greeting}
                             </h1>
-                            {activeFestive && <div className="animate-bounce-in filter drop-shadow-lg shrink-0 pt-1">{activeFestive.icon}</div>}
+                            {activeFestive && <div className="animate-bounce-in shrink-0 pt-1">{activeFestive.icon}</div>}
                         </div>
                         
                         {/* Phrase / Pill Area */}
@@ -284,9 +284,9 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                     </div>
                     
                     {/* Widgets Section - Right (Bottom on Mobile) */}
-                    <div className="grid grid-cols-2 gap-3 w-full md:w-auto md:min-w-[320px]">
-                        <ClockWidget theme={{...theme, card: `${innerBg} border ${theme.border} h-full min-h-[90px] flex flex-col justify-between`, inner: 'bg-white/10'}} />
-                        <WeatherWidget location={systemContext === 'Pg' ? 'PG' : systemContext === 'Sv' ? 'SV' : systemContext === 'Mip' ? 'Mongaguá' : 'PG'} theme={{...theme, card: `${innerBg} border ${theme.border} h-full min-h-[90px] flex flex-col justify-between`, inner: 'bg-white/10'}} />
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full md:w-auto md:min-w-[280px]">
+                        <ClockWidget theme={{...theme, card: `${innerBg} border ${theme.border} h-full min-h-[80px] flex flex-col justify-center`, inner: 'bg-white/10'}} />
+                        <WeatherWidget location={systemContext === 'Pg' ? 'PG' : systemContext === 'Sv' ? 'SV' : systemContext === 'Mip' ? 'Mongaguá' : 'PG'} theme={{...theme, card: `${innerBg} border ${theme.border} h-full min-h-[80px] flex flex-col justify-center`, inner: 'bg-white/10'}} />
                     </div>
                 </div>
             </div>

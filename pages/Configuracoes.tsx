@@ -825,7 +825,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 Como administrador, você pode criar novos usuários, alterar permissões e gerenciar quem tem acesso ao sistema.
                             </p>
                         </div>
-                        <div className="pt-4">
+                        <div className="pt-4 flex justify-center">
                             <Button 
                                 theme={theme} 
                                 onClick={() => setView('manageUsers')} 
