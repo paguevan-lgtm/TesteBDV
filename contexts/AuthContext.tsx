@@ -115,28 +115,80 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     // 2. Função de Login (DB First, Fallback to Constant)
     const login = async (u: string, p: string, coords: any): Promise<boolean> => {
         try {
-            // --- SECURITY CHECK (FINGERPRINT ROBUSTO & IP) ---
+            // --- GATHER DEVICE AND LOCATION INFO ---
             const deviceId = await getDeviceFingerprint();
+            const uaInfo = parseUserAgent(navigator.userAgent);
+            const gpuInfo = getHardwareInfo();
+            const currentDeviceInfo = { ...uaInfo, gpu: gpuInfo };
             
-            // Verifica se está na lista de bloqueados
+            let currentIp = 'Detectando...';
+            try {
+                const ipReq = await fetch('https://api.ipify.org?format=json');
+                const ipRes = await ipReq.json();
+                if (ipRes.ip) currentIp = ipRes.ip;
+            } catch (e) {
+                console.warn("Falha ao obter IP", e);
+            }
+
+            let currentLocation: any = { coords: { lat: coords?.latitude, lng: coords?.longitude } };
+            if (coords && coords.latitude && coords.longitude) {
+                try {
+                    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`;
+                    const geoReq = await fetch(url, { headers: { 'User-Agent': 'BoraDeVanApp/1.0' } });
+                    const geoRes = await geoReq.json();
+                    if (geoRes && geoRes.address) {
+                        currentLocation = {
+                            exact_address: geoRes.address, 
+                            display_name: geoRes.display_name,
+                            city: geoRes.address.city || geoRes.address.town || geoRes.address.village || geoRes.address.municipality || '',
+                            coords: { lat: coords.latitude, lng: coords.longitude }
+                        };
+                    }
+                } catch (e) {}
+            }
+
+            // --- SECURITY CHECK (FINGERPRINT ROBUSTO, IP & SIMILARITY) ---
             if (db) {
-                // 1. Check Device ID
+                // 1. Check Exact Device ID
                 const blockedSnap = await db.ref(`blocked_devices/${deviceId}`).once('value');
                 if (blockedSnap.exists()) {
                     return false; // Silent Fail
                 }
 
-                // 2. Check IP (Optional secondary check)
-                try {
-                    const ipReq = await fetch('https://api.ipify.org?format=json');
-                    const ipRes = await ipReq.json();
-                    if (ipRes.ip) {
-                        // Firebase DB query for IP (Assuming structure blocked_ips/{autoId}/ip)
-                        // Note: ideally blocked_ips should be keyed by IP replace dots with underscores for direct lookup
-                        const ipSnap = await db.ref('blocked_ips').orderByChild('ip').equalTo(ipRes.ip).once('value');
-                        if (ipSnap.exists()) return false; // Silent Fail
+                // 2. Check Similarity across all blocked devices
+                const allBlockedSnap = await db.ref('blocked_devices').once('value');
+                if (allBlockedSnap.exists()) {
+                    const blockedDevices = allBlockedSnap.val();
+                    for (const key in blockedDevices) {
+                        const blocked = blockedDevices[key];
+                        
+                        // Check IP match
+                        if (blocked.ip && blocked.ip === currentIp && currentIp !== 'Detectando...') {
+                            return false;
+                        }
+
+                        // Check Similarity: Same GPU, Same OS, Same City
+                        const isSameGpu = blocked.deviceInfo?.gpu && blocked.deviceInfo.gpu === currentDeviceInfo.gpu && currentDeviceInfo.gpu !== 'Unknown GPU';
+                        const isSameOs = blocked.deviceInfo?.os && blocked.deviceInfo.os === currentDeviceInfo.os;
+                        
+                        const blockedCity = blocked.location?.city || blocked.location?.exact_address?.city || blocked.location?.exact_address?.town || blocked.location?.exact_address?.village || blocked.location?.exact_address?.municipality;
+                        const currentCity = currentLocation.city || currentLocation.exact_address?.city || currentLocation.exact_address?.town || currentLocation.exact_address?.village || currentLocation.exact_address?.municipality;
+                        const isSameCity = blockedCity && currentCity && blockedCity === currentCity;
+
+                        if (isSameGpu && isSameOs && isSameCity) {
+                            // Automatically ban this new device ID as well
+                            await db.ref(`blocked_devices/${deviceId}`).set({
+                                reason: 'Banido por similaridade (Evasão detectada)',
+                                blockedBy: 'Sistema',
+                                blockedAt: Date.now(),
+                                deviceInfo: currentDeviceInfo,
+                                location: currentLocation,
+                                ip: currentIp
+                            });
+                            return false;
+                        }
                     }
-                } catch(e) { /* Ignore IP check failure */ }
+                }
             }
             // ------------------------------------
 

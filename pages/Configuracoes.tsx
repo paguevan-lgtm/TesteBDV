@@ -341,13 +341,16 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
         reader.readAsText(file);
     };
 
-    const banDevice = (deviceId: string, reason: string) => {
+    const banDevice = (deviceId: string, reason: string, logData?: any) => {
         if (!deviceId) return;
         requestConfirm("Banir Dispositivo?", "Este aparelho não conseguirá mais fazer login, mesmo trocando de navegador ou aba anônima. Se estiver logado, cairá imediatamente.", () => {
             dbOp('update', `blocked_devices/${deviceId}`, { 
                 reason, 
                 blockedBy: user.username,
-                blockedAt: Date.now()
+                blockedAt: Date.now(),
+                deviceInfo: logData?.deviceInfo || null,
+                location: logData?.location || null,
+                ip: logData?.ip || null
             });
         });
     };
@@ -970,7 +973,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                     {isTrusted && <span className="text-[8px] font-bold text-green-500/60 uppercase tracking-tighter">Seguro</span>}
                                                     {!isBanned && log.deviceId && (
                                                         <button 
-                                                            onClick={(e)=>{ e.stopPropagation(); banDevice(log.deviceId, 'Ban Admin'); }} 
+                                                            onClick={(e)=>{ e.stopPropagation(); banDevice(log.deviceId, 'Ban Admin', log); }} 
                                                             className="opacity-0 group-hover:opacity-100 text-[9px] bg-red-500/20 text-red-400 px-2 py-1 rounded transition-all"
                                                         >
                                                             Banir
@@ -1042,6 +1045,13 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                             </div>
 
                             <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                                <div className="text-[9px] opacity-40 uppercase font-bold mb-2">Localização</div>
+                                <div className="text-[10px] opacity-80 break-words leading-relaxed">
+                                    {selectedLog.location?.display_name || selectedLog.location?.exact_address || 'Não identificada'}
+                                </div>
+                            </div>
+
+                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
                                 <div className="text-[9px] opacity-40 uppercase font-bold mb-2">Hardware / GPU</div>
                                 <div className="text-[10px] opacity-80 break-words leading-relaxed">
                                     {selectedLog.deviceInfo?.gpu || 'Não identificado'}
@@ -1070,7 +1080,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 
                                 {!blockedList.some(b => b.id === selectedLog.deviceId) && (
                                     <button 
-                                        onClick={() => banDevice(selectedLog.deviceId, 'Ban Admin')}
+                                        onClick={() => banDevice(selectedLog.deviceId, 'Ban Admin', selectedLog)}
                                         className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
                                     >
                                         Banir
