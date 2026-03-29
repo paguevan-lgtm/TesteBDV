@@ -1,0 +1,293 @@
+
+import React, { createContext, useContext, useState, useEffect, ReactNode, PropsWithChildren } from 'react';
+import { USERS_DB } from '../constants';
+import { db, auth } from '../firebase';
+import { getDeviceFingerprint, parseUserAgent, getHardwareInfo } from '../utils';
+
+// Tipagem do Usuário
+interface User {
+    username: string;
+    role: string;
+    system?: string;
+}
+
+// Tipagem do Contexto
+interface AuthContextType {
+    user: User | null;
+    isAuthenticated: boolean;
+    isLoading: boolean;
+    login: (u: string, p: string, coords: any) => Promise<boolean>;
+    logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
+    const [user, setUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // 1. Leitura inicial do token e Auth Anônima
+    useEffect(() => {
+        const initAuth = async () => {
+            // Restore Session
+            try {
+                const savedSession = localStorage.getItem('nexflow_session');
+                if (savedSession) {
+                    const parsed = JSON.parse(savedSession);
+                    const now = Date.now();
+                    
+                    // Verifica expiração (12 horas)
+                    if (parsed.expiry && now < parsed.expiry) {
+                        setUser(parsed.user);
+                    } else {
+                        localStorage.removeItem('nexflow_session');
+                    }
+                }
+            } catch (error) {
+                console.error("Erro ao restaurar sessão:", error);
+                localStorage.removeItem('nexflow_session');
+            } finally {
+                setIsLoading(false);
+            }
+
+            // Firebase Anonymous Auth (Necessário para as Regras de Segurança)
+            if (auth) {
+                auth.onAuthStateChanged((u: any) => {
+                    if (!u) {
+                        auth.signInAnonymously().catch((e: any) => {
+                            // Ignora erros de configuração se ainda não estiver ativado no console
+                            if(e.code !== 'auth/configuration-not-found' && e.code !== 'auth/operation-not-allowed') {
+                                console.error("Firebase Auth Error:", e);
+                            }
+                        });
+                    }
+                });
+            }
+        };
+
+        initAuth();
+    }, []);
+
+    // 3. Função de Logout
+    const logout = () => {
+        localStorage.removeItem('nexflow_session');
+        setUser(null);
+    };
+
+    // NOVO: Listener de Bloqueio em Tempo Real
+    useEffect(() => {
+        let unsubscribe: any = null;
+
+        const setupBlockListener = async () => {
+            // Só ativa o listener se tiver banco de dados
+            if (!db) return;
+
+            try {
+                const deviceId = await getDeviceFingerprint();
+                const blockRef = db.ref(`blocked_devices/${deviceId}`);
+                
+                // Escuta mudanças em tempo real neste nó
+                const callback = blockRef.on('value', (snapshot) => {
+                    if (snapshot.exists()) {
+                        // Se o nó existir, significa que o dispositivo foi banido
+                        // Força logout imediato
+                        if (user) {
+                            console.warn("Dispositivo banido em tempo real. Deslogando...");
+                            logout();
+                        }
+                    }
+                });
+
+                unsubscribe = () => blockRef.off('value', callback);
+            } catch (e) {
+                console.error("Erro ao configurar listener de bloqueio:", e);
+            }
+        };
+
+        setupBlockListener();
+
+        // Cleanup ao desmontar
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [user, db]); // Depende de 'user' para reavaliar quando logar/deslogar
+
+    // 2. Função de Login (DB First, Fallback to Constant)
+    const login = async (u: string, p: string, coords: any): Promise<boolean> => {
+        try {
+            // --- SECURITY CHECK (FINGERPRINT ROBUSTO & IP) ---
+            const deviceId = await getDeviceFingerprint();
+            
+            // Verifica se está na lista de bloqueados
+            if (db) {
+                // 1. Check Device ID
+                const blockedSnap = await db.ref(`blocked_devices/${deviceId}`).once('value');
+                if (blockedSnap.exists()) {
+                    return false; // Silent Fail
+                }
+
+                // 2. Check IP (Optional secondary check)
+                try {
+                    const ipReq = await fetch('https://api.ipify.org?format=json');
+                    const ipRes = await ipReq.json();
+                    if (ipRes.ip) {
+                        // Firebase DB query for IP (Assuming structure blocked_ips/{autoId}/ip)
+                        // Note: ideally blocked_ips should be keyed by IP replace dots with underscores for direct lookup
+                        const ipSnap = await db.ref('blocked_ips').orderByChild('ip').equalTo(ipRes.ip).once('value');
+                        if (ipSnap.exists()) return false; // Silent Fail
+                    }
+                } catch(e) { /* Ignore IP check failure */ }
+            }
+            // ------------------------------------
+
+            let userData: User | null = null;
+
+            // Garantir Auth Anônima antes de ler o DB (caso o useEffect não tenha terminado)
+            if (auth && !auth.currentUser) {
+                try { await auth.signInAnonymously(); } catch(e) {}
+            }
+
+            // A. Verifica no Firebase Database
+            if (db) {
+                try {
+                    const snapshot = await db.ref('users').once('value');
+                    const users = snapshot.val();
+                    if (users) {
+                        const foundKey = Object.keys(users).find(key => 
+                            users[key].username.toLowerCase() === u.toLowerCase() && 
+                            users[key].pass === p
+                        );
+                        if (foundKey) {
+                            userData = { 
+                                username: users[foundKey].username, 
+                                role: users[foundKey].role,
+                                system: users[foundKey].system
+                            };
+                        }
+                    }
+                } catch (dbError) {
+                    console.error("Erro leitura login (DB):", dbError);
+                }
+            }
+
+            // B. Fallback para USERS_DB (Constante Local) se não achou no DB
+            if (!userData && USERS_DB[u] && USERS_DB[u].pass === p) {
+                // @ts-ignore
+                userData = { username: u, role: USERS_DB[u].role, system: USERS_DB[u].system };
+            }
+
+            if (userData) {
+                // Persistência
+                const expiry = Date.now() + 12 * 60 * 60 * 1000; // 12 horas
+                localStorage.setItem('nexflow_session', JSON.stringify({ user: userData, expiry }));
+                
+                // --- LOGGING DE ACESSO COM GEOCODIFICAÇÃO, FINGERPRINT E AUTO-LIMPEZA ---
+                (async () => {
+                    try {
+                        const uaInfo = parseUserAgent(navigator.userAgent);
+                        const gpuInfo = getHardwareInfo();
+
+                        const logData: any = {
+                            username: userData.username,
+                            timestamp: Date.now(),
+                            ip: 'Detectando...',
+                            device: navigator.userAgent,
+                            deviceId: deviceId, 
+                            deviceInfo: { ...uaInfo, gpu: gpuInfo } // Adds GPU info to logs
+                        };
+
+                        // 1. Obter IP Público
+                        try {
+                            const ipReq = await fetch('https://api.ipify.org?format=json');
+                            const ipRes = await ipReq.json();
+                            if (ipRes.ip) logData.ip = ipRes.ip;
+                        } catch (e) {
+                            console.warn("Falha ao obter IP", e);
+                        }
+
+                        // 2. Geocodificação Reversa (Coords -> Endereço)
+                        if (coords && coords.latitude && coords.longitude) {
+                            try {
+                                const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`;
+                                const geoReq = await fetch(url, { headers: { 'User-Agent': 'BoraDeVanApp/1.0' } });
+                                const geoRes = await geoReq.json();
+
+                                if (geoRes && geoRes.address) {
+                                    logData.location = {
+                                        exact_address: geoRes.address, 
+                                        display_name: geoRes.display_name,
+                                        coords: { lat: coords.latitude, lng: coords.longitude }
+                                    };
+                                } else {
+                                    logData.location = { coords: { lat: coords.latitude, lng: coords.longitude } };
+                                }
+                            } catch (e) {
+                                logData.location = { coords: { lat: coords.latitude, lng: coords.longitude } };
+                            }
+                        }
+
+                        if (db) {
+                            const timelineRef = db.ref('access_timeline');
+                            
+                            // Adiciona novo log
+                            await timelineRef.push(logData);
+
+                            // AUTO-LIMPEZA: Manter apenas os últimos 50 registros
+                            try {
+                                const snap = await timelineRef.orderByKey().limitToLast(50).once('value');
+                                if (snap.exists()) {
+                                    let oldestKeyToKeep: string | null = null;
+                                    // Firebase retorna em ordem (o primeiro da iteração é o mais antigo do grupo de 50)
+                                    snap.forEach((child) => {
+                                        if (!oldestKeyToKeep) oldestKeyToKeep = child.key;
+                                    });
+
+                                    if (oldestKeyToKeep) {
+                                        // Busca tudo que é anterior ao oldestKeyToKeep e deleta
+                                        const oldSnap = await timelineRef.orderByKey().endBefore(oldestKeyToKeep).once('value');
+                                        if (oldSnap.exists()) {
+                                            const updates: any = {};
+                                            oldSnap.forEach((child) => {
+                                                updates[child.key] = null;
+                                            });
+                                            await timelineRef.update(updates);
+                                            // console.log(`Limpeza concluída. ${Object.keys(updates).length} logs antigos removidos.`);
+                                        }
+                                    }
+                                }
+                            } catch (cleanupErr) {
+                                console.warn("Erro na limpeza de logs:", cleanupErr);
+                            }
+                        }
+
+                    } catch (err) {
+                        console.error("Erro fatal no logging:", err);
+                    }
+                })();
+                // ---------------------------------------------
+
+                setUser(userData);
+                return true;
+            }
+
+        } catch (error) {
+            console.error("Login error:", error);
+        }
+        
+        return false;
+    };
+
+    return (
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+    }
+    return context;
+};

@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-color, #3b82f6); /* Default blue */
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover-color, #2563eb);
+}
+
+/* Login Screen Animations */
+.road-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 200px;
+    background: #1e293b;
+    overflow: hidden;
+}
+
+.road-grid {
+    width: 200%;
+    height: 100%;
+    background-image: linear-gradient(to right, #334155 1px, transparent 1px),
+                      linear-gradient(to bottom, #334155 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: moveRoad 2s linear infinite;
+}
+
+@keyframes moveRoad {
+    from { transform: translateX(0); }
+    to { transform: translateX(-40px); }
+}
+
+.van-wrapper {
+    position: relative;
+    width: 300px;
+    height: 150px;
+    transition: transform 0.3s ease;
+}
+
+.van-wrapper.engine-on {
+    animation: shake 0.1s infinite;
+}
+
+@keyframes shake {
+    0% { transform: translate(1px, 1px); }
+    100% { transform: translate(-1px, -1px); }
+}
+
+/* Van Parts */
+.van-body { width: 100%; height: 100%; background: #f8fafc; border-radius: 20px; position: relative; }
+.roof { height: 30px; background: #e2e8f0; border-radius: 10px 10px 0 0; }
+.windshield { height: 40px; background: #cbd5e1; margin: 0 10px; }
+.front-fascia { height: 80px; background: #f1f5f9; display: flex; flex-direction: column; align-items: center; }
+.grille-unit { display: flex; gap: 10px; }
+.headlight-unit { width: 40px; height: 20px; background: #94a3b8; }
+.main-grille { width: 100px; height: 30px; background: #475569; }
+.bumper { height: 20px; background: #64748b; width: 100%; }
+.mirror-assembly { position: absolute; top: 40px; width: 30px; height: 20px; background: #475569; }
+.mirror-assembly.left { left: -30px; }
+.mirror-assembly.right { right: -30px; }
