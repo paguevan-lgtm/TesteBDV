@@ -350,7 +350,8 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 blockedAt: Date.now(),
                 deviceInfo: logData?.deviceInfo || null,
                 location: logData?.location || null,
-                ip: logData?.ip || null
+                ip: logData?.ip || null,
+                username: logData?.username || null
             });
         });
     };

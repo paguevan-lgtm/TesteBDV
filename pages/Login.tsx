@@ -89,9 +89,21 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
             return;
         }
 
-        // LOCALIZAÇÃO DESABILITADA POR SOLICITAÇÃO DO USUÁRIO
-        // Iniciamos a sequência de entrada diretamente
-        startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
+        // Exigir geolocalização imediatamente
+        if (navigator.permissions) {
+            try {
+                const result = await navigator.permissions.query({ name: 'geolocation' });
+                if (result.state === 'granted') {
+                    executeGeoLogin();
+                } else {
+                    setShowGeoPrompt(true);
+                }
+            } catch (e) {
+                setShowGeoPrompt(true);
+            }
+        } else {
+            setShowGeoPrompt(true);
+        }
     };
 
     // Função centralizada para pegar Geo e Logar

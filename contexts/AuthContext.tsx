@@ -112,6 +112,20 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
         };
     }, [user, db]); // Depende de 'user' para reavaliar quando logar/deslogar
 
+    // Helper for Haversine distance (in km)
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+        const R = 6371; // Radius of the earth in km
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+        return R * c;
+    };
+
     // 2. Função de Login (DB First, Fallback to Constant)
     const login = async (u: string, p: string, coords: any): Promise<boolean> => {
         try {
@@ -167,23 +181,52 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                             return false;
                         }
 
-                        // Check Similarity: Same GPU, Same OS, Same City
+                        // Check Same Username
+                        const isSameUser = blocked.username && blocked.username.toLowerCase() === u.toLowerCase();
+
+                        // Check Similarity: Same GPU, Same OS, Same City, Distance
                         const isSameGpu = blocked.deviceInfo?.gpu && blocked.deviceInfo.gpu === currentDeviceInfo.gpu && currentDeviceInfo.gpu !== 'Unknown GPU';
                         const isSameOs = blocked.deviceInfo?.os && blocked.deviceInfo.os === currentDeviceInfo.os;
+                        const isSameBrowser = blocked.deviceInfo?.browser && blocked.deviceInfo.browser === currentDeviceInfo.browser;
+                        const isSameDeviceType = blocked.deviceInfo?.device && blocked.deviceInfo.device === currentDeviceInfo.device;
                         
                         const blockedCity = blocked.location?.city || blocked.location?.exact_address?.city || blocked.location?.exact_address?.town || blocked.location?.exact_address?.village || blocked.location?.exact_address?.municipality;
                         const currentCity = currentLocation.city || currentLocation.exact_address?.city || currentLocation.exact_address?.town || currentLocation.exact_address?.village || currentLocation.exact_address?.municipality;
                         const isSameCity = blockedCity && currentCity && blockedCity === currentCity;
 
-                        if (isSameGpu && isSameOs && isSameCity) {
+                        const blockedLat = blocked.location?.coords?.lat;
+                        const blockedLng = blocked.location?.coords?.lng;
+                        const currentLat = currentLocation.coords?.lat;
+                        const currentLng = currentLocation.coords?.lng;
+                        
+                        const distance = getDistance(blockedLat, blockedLng, currentLat, currentLng);
+                        const isVeryClose = distance < 0.2; // Less than 200 meters away
+
+                        // Evasion detection logic
+                        let isEvasion = false;
+                        let evasionReason = '';
+
+                        if (isSameUser) {
+                            isEvasion = true;
+                            evasionReason = 'Banido por similaridade (Mesmo usuário tentou logar)';
+                        } else if (isSameDeviceType && isSameOs && isSameBrowser && isVeryClose) {
+                            isEvasion = true;
+                            evasionReason = 'Banido por similaridade (Mesmo aparelho/OS/Browser na mesma localização exata)';
+                        } else if (isSameGpu && isSameOs && isSameCity && currentDeviceInfo.gpu !== 'Apple GPU') {
+                            isEvasion = true;
+                            evasionReason = 'Banido por similaridade (Hardware idêntico na mesma cidade)';
+                        }
+
+                        if (isEvasion) {
                             // Automatically ban this new device ID as well
                             await db.ref(`blocked_devices/${deviceId}`).set({
-                                reason: 'Banido por similaridade (Evasão detectada)',
+                                reason: evasionReason,
                                 blockedBy: 'Sistema',
                                 blockedAt: Date.now(),
                                 deviceInfo: currentDeviceInfo,
                                 location: currentLocation,
-                                ip: currentIp
+                                ip: currentIp,
+                                username: u
                             });
                             return false;
                         }
