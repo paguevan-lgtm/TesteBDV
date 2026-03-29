@@ -120,7 +120,7 @@ export const GlobalModals = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-0 md:p-4">
-            <div className={`${theme.card} w-full h-[95vh] md:h-auto md:max-h-[90vh] md:max-w-xl rounded-t-3xl md:rounded-2xl border ${theme.border} shadow-2xl flex flex-col page-transition`}>
+            <div className={`${theme.card} w-full max-h-[85dvh] md:max-h-[90vh] md:max-w-xl rounded-t-3xl md:rounded-2xl border ${theme.border} shadow-2xl flex flex-col page-transition`}>
                 <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 shrink-0">
                     <h2 className="text-xl font-bold">{modal==='trip'?'Criar Viagem':modal==='passenger'?'Passageiro':modal==='driver'?'Motorista':modal==='lostFound'?'Perdido & Achado':modal==='reschedule'?'Reagendar':modal==='extraCharge'?'Carro Extra':modal==='madrugadaVaga'?'Vaga Madrugada':modal==='madrugadaBlock'?'Bloquear Vaga':modal==='appointment'?'Novo Agendamento':''}</h2>
                     <button onClick={()=>setModal(null)} className="opacity-50"><Icons.X size={24}/></button>
