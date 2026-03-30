@@ -3,49 +3,110 @@ import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Icons, Button, IconButton } from '../components/Shared';
 import { handlePrint, formatDisplayDate, dateAddDays, getDayName } from '../utils';
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragOverlay,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    verticalListSortingStrategy,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
 
-// Timer Component local to Tabela
-const TempTripTimer = ({ date, time }: any) => {
-    const [timeLeft, setTimeLeft] = useState('');
-    
-    useEffect(() => {
-        const tick = () => {
-            if (!date || !time) return;
-            const [y, mo, d] = date.split('-').map(Number);
-            // Sanitiza horário para lidar com "05:00/05:45"
-            const cleanTime = time.split('/')[0].trim();
-            const [h, mi] = cleanTime.split(':').map(Number);
-            
-            if (isNaN(h) || isNaN(mi)) return;
+const SortableRow = ({ id, children, disabled }: any) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id, disabled });
 
-            // O horário recebido (time) já é Slot + 60 min (Exibido no Card).
-            // A viagem expira em Slot + 45 min.
-            // Portanto, Expiration = TripTime - 15 min.
-            const tripStart = new Date(y, mo - 1, d, h, mi, 0);
-            const expiration = new Date(tripStart.getTime() - 15 * 60000); 
-            
-            const now = new Date();
-            const diff = expiration.getTime() - now.getTime();
-            
-            if (diff <= 0) {
-                setTimeLeft('Expirando...');
-            } else {
-                const m = Math.floor(diff / 60000);
-                const s = Math.floor((diff % 60000) / 1000);
-                setTimeLeft(`${m}m ${s}s`);
-            }
-        };
-        tick(); 
-        const int = setInterval(tick, 1000); 
-        return () => clearInterval(int);
-    }, [date, time]);
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 1,
+        opacity: isDragging ? 0.5 : 1,
+    };
 
-    return <span className="text-[10px] font-bold text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">{timeLeft}</span>;
+    return (
+        <div ref={setNodeRef} style={style} className="relative group">
+            {children}
+            {!disabled && (
+                <div {...attributes} {...listeners} className="absolute right-0 top-1/2 -translate-y-1/2 -mr-6 cursor-grab active:cursor-grabbing p-1 opacity-0 group-hover:opacity-40 transition-opacity z-20">
+                    <Icons.GripVertical size={16}/>
+                </div>
+            )}
+        </div>
+    );
 };
 
-export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker }: any) {
+// Tabela Component
+export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker, rotationBaseDate }: any) {
 
-    const isPranchetaOverdue = true; // Always check against duePranchetaData
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                delay: 250,
+                tolerance: 5,
+            },
+        })
+    );
+
+    const handleGeralDragEnd = (event: any) => {
+        const { active, over } = event;
+        if (active.id !== over?.id) {
+            const oldIndex = analysisRotatedList.findIndex((i: any) => (i.id || `vaga-${i.vaga}`) === active.id);
+            const newIndex = analysisRotatedList.findIndex((i: any) => (i.id || `vaga-${i.vaga}`) === over.id);
+            
+            const newRotatedList = arrayMove(analysisRotatedList, oldIndex, newIndex);
+            
+            // Un-rotation logic
+            const originalList = spList.filter((d: any) => !d.isCopy);
+            const copiesList = newRotatedList.filter((d: any) => d.isCopy);
+            const rotatedOriginals = newRotatedList.filter((d: any) => !d.isCopy);
+            
+            const start = new Date(`${rotationBaseDate}T00:00:00`).getTime(); 
+            const current = new Date(analysisDate + 'T00:00:00').getTime();
+            const diff = Math.floor((current - start) / (86400000));
+            const len = originalList.length;
+            const mod = ((diff % len) + len) % len;
+            
+            const unrotatedOriginals = [...rotatedOriginals.slice(len - mod), ...rotatedOriginals.slice(0, len - mod)];
+            
+            const newList = [...unrotatedOriginals, ...copiesList];
+            setSpList(newList);
+            dbOp('update', 'drivers_table_list', newList);
+        }
+    };
+
+    const handleLousaDragEnd = (event: any) => {
+        const { active, over } = event;
+        if (active.id !== over?.id) {
+            const oldIndex = lousaOrder.findIndex((i: any) => i.id === active.id);
+            const newIndex = lousaOrder.findIndex((i: any) => i.id === over.id);
+            const newList = arrayMove(lousaOrder, oldIndex, newIndex);
+            dbOp('update', 'lousa_order', newList);
+        }
+    };
+
+    const handleMadrugadaDragEnd = (event: any) => {
+        const { active, over } = event;
+        if (active.id !== over?.id) {
+            const oldIndex = madrugadaList.indexOf(active.id);
+            const newIndex = madrugadaList.indexOf(over.id);
+            const newList = arrayMove(madrugadaList, oldIndex, newIndex);
+            dbOp('update', 'madrugada_list', newList);
+        }
+    };
 
     const currentEffectiveFolgas = React.useMemo(() => {
         if (getFolgasForDate) {
@@ -68,6 +129,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
         setIsLocked(newState);
         localStorage.setItem(`isLocked_${systemContext}`, String(newState));
     };
+    const isPranchetaOverdue = true; // Define as true by default for Pg system logic
     let lousaEffectiveIndex = 0;
 
     // Lógica para determinar qual data de Madrugada mostrar INICIALMENTE
@@ -154,6 +216,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
 
     return (
         <div 
+            onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') e.stopPropagation(); }}
             className="space-y-6 max-w-4xl mx-auto w-full min-h-[70vh]"
         >
             {/* Modal de Confirmação para Limpar Tabela */}
@@ -228,20 +291,30 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                         </div>
                     </div>
                     <div id="print-tabela-list" className="space-y-2">
-                        {analysisRotatedList && analysisRotatedList.length > 0 ? analysisRotatedList.map((driver:any, idx:number) => {
-                            const isOperational = analysisDate === currentOpDate;
-                            const status = isOperational ? tableStatus[driver.vaga] : null; 
-                            
-                            const dayName = getDayName(analysisDate);
-                            const isFolga = currentEffectiveFolgas && currentEffectiveFolgas[dayName] && currentEffectiveFolgas[dayName].includes(driver.vaga);
-                            const hasGancho = ganchos && ganchos[analysisDate] && ganchos[analysisDate][driver.name];
-                            const isBlocked = isFolga || hasGancho;
+                        <DndContext 
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleGeralDragEnd}
+                            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+                        >
+                            <SortableContext 
+                                items={analysisRotatedList.map((i: any) => i.id || `vaga-${i.vaga}`)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {analysisRotatedList && analysisRotatedList.length > 0 ? analysisRotatedList.map((driver:any, idx:number) => {
+                                    const isOperational = analysisDate === currentOpDate;
+                                    const status = isOperational ? tableStatus[driver.vaga] : null; 
+                                    
+                                    const dayName = getDayName(analysisDate);
+                                    const isFolga = currentEffectiveFolgas && currentEffectiveFolgas[dayName] && currentEffectiveFolgas[dayName].includes(driver.vaga);
+                                    const hasGancho = ganchos && ganchos[analysisDate] && ganchos[analysisDate][driver.name];
+                                    const isBlocked = isFolga || hasGancho;
 
-                            return (
-                                <div 
-                                    key={driver?.id || `vaga-${driver?.vaga}-${idx}`} 
-                                    className={`p-3 rounded-lg border ${theme.border} flex flex-col sm:flex-row sm:items-center justify-between transition-colors gap-3 bg-white/5 hover:bg-white/10 ${isBlocked ? 'opacity-40 grayscale print:opacity-100 print:grayscale-0' : ''}`}
-                                >
+                                    return (
+                                        <SortableRow key={driver?.id || `vaga-${driver?.vaga}-${idx}`} id={driver?.id || `vaga-${driver?.vaga}`} disabled={isLocked}>
+                                            <div 
+                                                className={`p-3 rounded-lg border ${theme.border} flex flex-col sm:flex-row sm:items-center justify-between transition-colors gap-3 bg-white/5 hover:bg-white/10 ${isBlocked ? 'opacity-40 grayscale print:opacity-100 print:grayscale-0' : ''}`}
+                                            >
                                     <div className="flex items-center gap-4">
                                         {editName === driver.vaga ? (
                                             <div className="flex items-center gap-2 hide-on-print">
@@ -421,9 +494,12 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                             )}
                                         </div>
                                     )}
-                                </div>
-                            );
-                        }) : <div className="text-center py-4 opacity-50">Nenhum motorista na lista.</div>}
+                                            </div>
+                                        </SortableRow>
+                                    );
+                                }) : <div className="text-center py-4 opacity-50">Nenhum motorista na lista.</div>}
+                            </SortableContext>
+                        </DndContext>
                     </div>
                 </div>
             )}
@@ -456,7 +532,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                 const isTemp = !!trip;
 
                                 return (
-                                    <div key={driver.id || `vaga-${driver.vaga}-${idx}`} className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border transition-all ${isTemp ? 'border-2 border-dashed border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.1)]' : ''} ${expired ? 'bg-red-900/10 border-red-500/20 opacity-80' : 'bg-black/20 border-white/5'} print:bg-transparent`}>
+                                    <div key={driver.id || `vaga-${driver.vaga}-${idx}`} className={`relative h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border transition-all ${expired ? 'bg-red-900/10 border-red-500/20 opacity-80' : 'bg-black/20 border-white/5'} print:bg-transparent`}>
                                         <div 
                                             className={`w-[40px] h-[40px] rounded relative flex items-center justify-center flex-shrink-0 ${expired ? 'bg-red-500/20 text-red-300' : 'bg-green-900/50 text-green-200'} print:bg-transparent`}
                                             data-print-bg="transparent"
@@ -486,7 +562,6 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                             >
                                                 {driver.name}
                                             </span>
-                                            {isTemp && <div className="hide-on-print"><TempTripTimer date={trip.date} time={trip.time} /></div>}
                                         </div>
                                         <div className="flex items-center gap-3 text-right flex-shrink-0">
                                             <span 
@@ -538,47 +613,57 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                     <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none z-0"><Icons.List size={64}/></div>
                     
                     <div id="print-lousa-list" className="space-y-2 min-h-[300px] relative z-10">
-                        {lousaOrder && lousaOrder.map((item:any, index:number) => { 
-                            const vaga = item.vaga; 
-                            const isNullItem = item.isNull;
-                            const driver = isNullItem ? { name: "🚫 HORÁRIO VAGO" } : (spList.find((d:any) => d.vaga === vaga) || { name: '' }); 
-                            const isRiscado = item.riscado; 
-                            const isBaixou = item.baixou;
-                            
-                            let displayContent = '---'; 
-                            let isExpired = false;
-                            let isTimeCrossed = false;
-                            let timeClass = 'text-yellow-400';
+                        <DndContext 
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleLousaDragEnd}
+                            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+                        >
+                            <SortableContext 
+                                items={lousaOrder.map((i: any) => i.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {lousaOrder && lousaOrder.map((item:any, index:number) => { 
+                                    const vaga = item.vaga; 
+                                    const isNullItem = item.isNull;
+                                    const driver = isNullItem ? { name: "🚫 HORÁRIO VAGO" } : (spList.find((d:any) => d.vaga === vaga) || { name: '' }); 
+                                    const isRiscado = item.riscado; 
+                                    const isBaixou = item.baixou;
+                                    
+                                    let displayContent = '---'; 
+                                    let isExpired = false;
+                                    let isTimeCrossed = false;
+                                    let timeClass = 'text-yellow-400';
 
-                            if (isBaixou) {
-                                displayContent = 'BAIXOU';
-                                timeClass = 'text-orange-500 font-bold';
-                                // Note: We do NOT increment lousaEffectiveIndex when "Baixou", effectively skipping the time slot calculation for this row
-                            } else if (isRiscado) {
-                                displayContent = 'RISCOU';
-                                timeClass = 'text-red-500 font-bold';
-                            } else if (!isNullItem) {
-                                const t = new Date(startLousaTime.getTime() + lousaEffectiveIndex * 30 * 60000); 
-                                displayContent = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); 
-                                isExpired = isTimeExpired ? isTimeExpired(displayContent) : false;
-                                if (isExpired) {
-                                    timeClass = 'text-red-400';
-                                    isTimeCrossed = true;
-                                }
-                                lousaEffectiveIndex++; 
-                            } else {
-                                // isNullItem
-                                const t = new Date(startLousaTime.getTime() + lousaEffectiveIndex * 30 * 60000); 
-                                displayContent = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-                                timeClass = 'opacity-50';
-                                            lousaEffectiveIndex++;
-                            }
-                            
-                            return ( 
-                                <div 
-                                    key={item.uid || `lousa-${item.vaga}-${index}`} 
-                                    className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border ${isExpired ? 'bg-red-900/10 border-red-500/20 opacity-80' : (isRiscado ? 'bg-red-900/10 border-red-500/20 opacity-60' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20 opacity-70' : 'bg-black/20 border-white/5'))}`}
-                                > 
+                                    if (isBaixou) {
+                                        displayContent = 'BAIXOU';
+                                        timeClass = 'text-orange-500 font-bold';
+                                        // Note: We do NOT increment lousaEffectiveIndex when "Baixou", effectively skipping the time slot calculation for this row
+                                    } else if (isRiscado) {
+                                        displayContent = 'RISCOU';
+                                        timeClass = 'text-red-500 font-bold';
+                                    } else if (!isNullItem) {
+                                        const t = new Date(startLousaTime.getTime() + lousaEffectiveIndex * 30 * 60000); 
+                                        displayContent = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); 
+                                        isExpired = isTimeExpired ? isTimeExpired(displayContent) : false;
+                                        if (isExpired) {
+                                            timeClass = 'text-red-400';
+                                            isTimeCrossed = true;
+                                        }
+                                        lousaEffectiveIndex++; 
+                                    } else {
+                                        // isNullItem
+                                        const t = new Date(startLousaTime.getTime() + lousaEffectiveIndex * 30 * 60000); 
+                                        displayContent = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+                                        timeClass = 'opacity-50';
+                                                    lousaEffectiveIndex++;
+                                    }
+                                    
+                                    return ( 
+                                        <SortableRow key={item.id || `lousa-${item.vaga}-${index}`} id={item.id} disabled={isLocked}>
+                                            <div 
+                                                className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border ${isExpired ? 'bg-red-900/10 border-red-500/20 opacity-80' : (isRiscado ? 'bg-red-900/10 border-red-500/20 opacity-60' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20 opacity-70' : 'bg-black/20 border-white/5'))}`}
+                                            > 
                                         <div 
                                             className={`w-[40px] h-[40px] rounded relative flex items-center justify-center flex-shrink-0 ${isNullItem ? 'opacity-0' : (isExpired ? 'bg-red-500/20 text-red-300' : 'bg-white/10 opacity-70')}`}
                                             data-print-bg="transparent"
@@ -642,10 +727,13 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                         
                                         <button onClick={() => handleLousaAction(item.uid, 'remove', vaga)} className="p-1.5 bg-white/5 rounded hover:bg-red-500/20 text-red-400 hide-on-print flex-shrink-0" title="Remover"><Icons.X size={12}/></button> 
                                     </div> 
-                                </div> 
+                                    </div> 
+                                </SortableRow>
                             ); 
                         })} 
                         {(!lousaOrder || lousaOrder.length === 0) && <div className="text-center opacity-30 text-sm py-10">Lousa vazia</div>} 
+                            </SortableContext>
+                        </DndContext>
                     </div>
                 </div>
             )}
@@ -679,30 +767,40 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                     </div>
                     <p className="text-xs opacity-50 mb-3 hide-on-print">Planejamento para a madrugada do dia {formatDisplayDate(madrugadaDisplayDate)}.</p>
                     <div id="print-madrugada-list" className="space-y-2">
-                        {/* USANDO LISTA ORDENADA AUTOMATICAMENTE COM BASE NA DATA SELECIONADA */}
-                        {madrugadaOrderedList && madrugadaOrderedList.length > 0 ? madrugadaOrderedList.map((driver:any, index:number) => { 
-                            const vaga = driver.vaga;
-                            const isNullMadrugada = vaga && (vaga.toUpperCase() === 'NULL');
-                            const mData = madrugadaData[vaga] || { qtd: '', time: '', riscado: false, comment: '' }; 
-                            
-                            // Busca viagem específica para a data selecionada
-                            const tripId = `mad_${madrugadaDisplayDate}_${vaga}`;
-                            const trip = data.trips.find((t:any) => t.id === tripId || (t.isMadrugada && String(t.vaga) === String(vaga) && t.date === madrugadaDisplayDate && t.status !== 'Cancelada'));
-                            const isCancelled = trip && trip.status === 'Cancelada';
-                            const isFinished = trip && trip.status === 'Finalizada';
-                            const isTemp = trip && trip.isTemp;
-                            
-                            const displayTime = trip ? trip.time : (madrugadaDisplayDate === currentOpDate ? mData.time : '');
-                            const displayQtd = trip ? (trip.pCountSnapshot || trip.pCount) : (madrugadaDisplayDate === currentOpDate ? mData.qtd : '');
+                        <DndContext 
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleMadrugadaDragEnd}
+                            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+                        >
+                            <SortableContext 
+                                items={madrugadaOrderedList.map((i: any) => i.vaga)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {/* USANDO LISTA ORDENADA AUTOMATICAMENTE COM BASE NA DATA SELECIONADA */}
+                                {madrugadaOrderedList && madrugadaOrderedList.length > 0 ? madrugadaOrderedList.map((driver:any, index:number) => { 
+                                    const vaga = driver.vaga;
+                                    const isNullMadrugada = vaga && (vaga.toUpperCase() === 'NULL');
+                                    const mData = madrugadaData[vaga] || { qtd: '', time: '', riscado: false, comment: '' }; 
+                                    
+                                    // Busca viagem específica para a data selecionada
+                                    const tripId = `mad_${madrugadaDisplayDate}_${vaga}`;
+                                    const trip = data.trips.find((t:any) => t.id === tripId || (t.isMadrugada && String(t.vaga) === String(vaga) && t.date === madrugadaDisplayDate && t.status !== 'Cancelada'));
+                                    const isCancelled = trip && trip.status === 'Cancelada';
+                                    const isFinished = trip && trip.status === 'Finalizada';
+                                    const isTemp = trip && trip.isTemp;
+                                    
+                                    const displayTime = trip ? trip.time : (madrugadaDisplayDate === currentOpDate ? mData.time : '');
+                                    const displayQtd = trip ? (trip.pCountSnapshot || trip.pCount) : (madrugadaDisplayDate === currentOpDate ? mData.qtd : '');
 
-                            let rowClass = `flex flex-col md:flex-row items-center gap-2 p-3 rounded-lg border`;
-                            if (isCancelled) rowClass += ` bg-red-900/10 border-red-500/30 opacity-70`;
-                            else if (isFinished) rowClass += ` bg-green-900/10 border-green-500/30`;
-                            else if (isTemp) rowClass += ` border-2 border-dashed border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.1)] bg-yellow-400/5`;
-                            else rowClass += ` bg-black/20 border-white/5`;
+                                    let rowClass = `flex flex-col md:flex-row items-center gap-2 p-3 rounded-lg border`;
+                                    if (isCancelled) rowClass += ` bg-red-900/10 border-red-500/30 opacity-70`;
+                                    else if (isFinished) rowClass += ` bg-green-900/10 border-green-500/30`;
+                                    else rowClass += ` bg-black/20 border-white/5`;
 
-                            return ( 
-                                <div key={`madrugada-${vaga}-${index}`} className={rowClass}> 
+                                    return ( 
+                                        <SortableRow key={`madrugada-${vaga}-${index}`} id={vaga} disabled={isLocked}>
+                                            <div className={rowClass}> 
                                     <div className="flex items-center gap-3 w-full md:w-auto flex-1 relative min-w-0"> 
                                         <div className="opacity-30 hide-on-print flex-shrink-0"><Icons.List size={14}/></div> 
                                         <button onClick={() => removeMadrugadaVaga(vaga)} className="text-red-400 opacity-50 hover:opacity-100 hide-on-print flex-shrink-0"><Icons.Trash size={14}/></button> 
@@ -741,7 +839,6 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                                 {isFinished && <span className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded uppercase font-bold">Finalizada</span>}
                                                 {mData.riscado && mData.comment && ( <div className="text-[12px] text-red-300 bg-red-900/30 px-2 py-1 rounded w-fit flex items-center justify-center leading-tight whitespace-nowrap overflow-visible max-w-full relative top-[3px] font-bold">{mData.comment}</div> )} 
                                             </div>
-                                            {isTemp && <div className="hide-on-print"><TempTripTimer date={trip.date} time={trip.time} /></div>}
                                         </div> 
                                     </div> 
                                     {!mData.riscado && ( 
@@ -784,8 +881,11 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                         </div> 
                                     )} 
                                 </div> 
+                            </SortableRow>
                             ); 
                         }) : <div className="text-center opacity-30 text-sm py-4">Nenhuma vaga na madrugada para esta data.</div>} 
+                            </SortableContext>
+                        </DndContext>
                     </div>
                 </div>
             )}

@@ -335,6 +335,9 @@ export const handlePrint = async (targetId: string, filename: string, title: str
         clone.querySelectorAll('[data-print-opacity]').forEach(el => {
             (el as any).style.opacity = el.getAttribute('data-print-opacity');
         });
+        clone.querySelectorAll('[data-print-shadow]').forEach(el => {
+            (el as any).style.boxShadow = el.getAttribute('data-print-shadow');
+        });
         
         // Fix for column breaking
         Array.from(clone.children).forEach((child: any) => {

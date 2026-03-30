@@ -331,7 +331,33 @@ const AppContent = () => {
         return items;
     }, [user]);
 
-    const [orderedMenuItems, setOrderedMenuItems] = useState(DEFAULT_MENU_ITEMS);
+    const [orderedMenuItems, setOrderedMenuItems] = useState(() => {
+        const saved = localStorage.getItem(`menu_order_${user?.username}`);
+        if (saved) {
+            try {
+                const order = JSON.parse(saved);
+                return [...DEFAULT_MENU_ITEMS].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+            } catch (e) {
+                return DEFAULT_MENU_ITEMS;
+            }
+        }
+        return DEFAULT_MENU_ITEMS;
+    });
+
+    // Update ordered menu items when DEFAULT_MENU_ITEMS changes (e.g. user login)
+    useEffect(() => {
+        const saved = localStorage.getItem(`menu_order_${user?.username}`);
+        if (saved) {
+            try {
+                const order = JSON.parse(saved);
+                setOrderedMenuItems([...DEFAULT_MENU_ITEMS].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)));
+            } catch (e) {
+                setOrderedMenuItems(DEFAULT_MENU_ITEMS);
+            }
+        } else {
+            setOrderedMenuItems(DEFAULT_MENU_ITEMS);
+        }
+    }, [DEFAULT_MENU_ITEMS, user?.username]);
 
     const TOUR_STEPS = [
         { 
@@ -2854,6 +2880,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                     setMenuOpen={setMenuOpen} 
                     user={user} 
                     orderedMenuItems={orderedMenuItems}
+                    setOrderedMenuItems={setOrderedMenuItems}
                     daysRemaining={daysRemaining}
                     renewalDate={renewalDate}
                     setRunTour={setRunTour}
@@ -2937,6 +2964,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                 getRotatedList={getRotatedList} 
                                 getRotatedMadrugadaList={getRotatedMadrugadaList} // Nova prop
                                 setSpList={setSpList}
+                                rotationBaseDate={rotationBaseDate}
                                 dbOp={dbOp}
                                 systemContext={systemContext}
                                 updateMipDriver={updateMipDriver}

@@ -3,6 +3,68 @@ import React from 'react';
 import { Icons } from './Shared';
 import { getAvatarUrl } from '../utils';
 import { motion } from 'motion/react';
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragOverlay,
+    defaultDropAnimationSideEffects,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    verticalListSortingStrategy,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
+
+const SortableMenuItem = ({ item, isMobile, view, setView, setMenuOpen, theme }: any) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: item.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 1,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div 
+            ref={setNodeRef} 
+            style={style}
+            className="relative rounded-xl mb-1 group"
+        >
+            <button 
+                id={`menu-btn-${item.id}${isMobile ? '-mobile' : ''}`} 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setView(item.id);
+                    if(isMobile) setMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative z-10 ${view === item.id ? `${theme.primary} shadow-lg` : 'hover:bg-white/5 opacity-70 hover:opacity-100'}`}
+            >
+                <item.i size={20}/>
+                <div className="flex-1 text-left">
+                    <div className="text-sm font-bold">{item.l}</div>
+                    <div className="text-[10px] opacity-50">{item.d}</div>
+                </div>
+                <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 opacity-0 group-hover:opacity-40 transition-opacity">
+                    <Icons.GripVertical size={14}/>
+                </div>
+            </button>
+        </div>
+    );
+};
 
 export const Sidebar = ({ 
     theme, 
@@ -12,14 +74,36 @@ export const Sidebar = ({
     setMenuOpen, 
     user, 
     orderedMenuItems, 
+    setOrderedMenuItems,
     daysRemaining,
     renewalDate,
     setRunTour,
     systemContext
 }: any) => {
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                delay: 250,
+                tolerance: 5,
+            },
+        })
+    );
+
+    const handleDragEnd = (event: any) => {
+        const { active, over } = event;
+        if (active.id !== over?.id) {
+            const oldIndex = orderedMenuItems.findIndex((i: any) => i.id === active.id);
+            const newIndex = orderedMenuItems.findIndex((i: any) => i.id === over.id);
+            const newList = arrayMove(orderedMenuItems, oldIndex, newIndex);
+            setOrderedMenuItems(newList);
+            // Persist order
+            localStorage.setItem(`menu_order_${user?.username}`, JSON.stringify(newList.map((i: any) => i.id)));
+        }
+    };
+
     const renderMenuContent = (isMobile: boolean) => (
-        <>
+        <div onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') e.stopPropagation(); }} className="flex flex-col h-full">
             <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-amber-600 rounded-xl flex items-center justify-center text-white">
@@ -34,29 +118,29 @@ export const Sidebar = ({
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-                {orderedMenuItems.map((item:any, index:number) => (
-                    <motion.div 
-                        key={item.id} 
-                        className="relative rounded-xl"
+                <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                    modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+                >
+                    <SortableContext 
+                        items={orderedMenuItems.map((i: any) => i.id)}
+                        strategy={verticalListSortingStrategy}
                     >
-                        <button 
-                            id={`menu-btn-${item.id}${isMobile ? '-mobile' : ''}`} 
-                            onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') e.stopPropagation(); }}
-                            onClick={(e) => {
-                                e.stopPropagation(); // Prevent Ctrl+K trigger
-                                setView(item.id);
-                                if(isMobile) setMenuOpen(false);
-                            }}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group relative z-10 ${view === item.id ? `${theme.primary} shadow-lg` : 'hover:bg-white/5 opacity-70 hover:opacity-100'}`}
-                        >
-                            <item.i size={20}/>
-                            <div className="flex-1 text-left">
-                                <div className="text-sm font-bold">{item.l}</div>
-                                <div className="text-[10px] opacity-50">{item.d}</div>
-                            </div>
-                        </button>
-                    </motion.div>
-                ))}
+                        {orderedMenuItems.map((item: any) => (
+                            <SortableMenuItem 
+                                key={item.id}
+                                item={item}
+                                isMobile={isMobile}
+                                view={view}
+                                setView={setView}
+                                setMenuOpen={setMenuOpen}
+                                theme={theme}
+                            />
+                        ))}
+                    </SortableContext>
+                </DndContext>
             </div>
 
             <div className="p-4 border-t border-white/5 mt-auto">
@@ -83,7 +167,7 @@ export const Sidebar = ({
                     </div>
                 </button>
             </div>
-        </>
+        </div>
     );
 
     return (
