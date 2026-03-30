@@ -43,7 +43,14 @@ const TempTripTimer = ({ date, time }: any) => {
     return <span className="text-[10px] font-bold text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">{timeLeft}</span>;
 };
 
-export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user }: any) {
+export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker }: any) {
+
+    const isPranchetaOverdue = React.useMemo(() => {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+        // Segunda (1) e Terça (2) são os dias de "atraso" antes da nova cobrança na quarta
+        return [1, 2].includes(day);
+    }, [uiTicker]);
 
     const currentEffectiveFolgas = React.useMemo(() => {
         if (getFolgasForDate) {
@@ -285,17 +292,24 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <div className="flex items-center gap-2">
-                                                        <span 
-                                                            data-print-size="28px" 
-                                                            data-print-weight="bold" 
-                                                            data-print-color={(isFolga || driver.riscado) ? "#ef4444" : "#ffffff"}
-                                                            data-print-decoration={(isFolga || driver.riscado || driver.baixou) ? "line-through" : "none"}
-                                                            data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
-                                                            data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                                            className={`inline-block font-bold text-lg ${driver.riscado || isBlocked ? 'line-through text-red-500' : ''} ${driver.baixou ? 'text-blue-400' : ''}`}
-                                                        >
-                                                            {driver.name} 
-                                                        </span>
+                                                        {(() => {
+                                                            const isPranchetaPaid = pranchetaData && pranchetaData[driver.vaga]?.paid;
+                                                            const shouldCrossOutPrancheta = isPranchetaOverdue && !isPranchetaPaid && systemContext === 'Pg';
+                                                            
+                                                            return (
+                                                                <span 
+                                                                    data-print-size="28px" 
+                                                                    data-print-weight="bold" 
+                                                                    data-print-color={(isFolga || driver.riscado || shouldCrossOutPrancheta) ? "#ef4444" : "#ffffff"}
+                                                                    data-print-decoration={(isFolga || driver.riscado || driver.baixou || shouldCrossOutPrancheta) ? "line-through" : "none"}
+                                                                    data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
+                                                                    data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
+                                                                    className={`inline-block font-bold text-lg ${driver.riscado || isBlocked || shouldCrossOutPrancheta ? 'line-through text-red-500' : ''} ${driver.baixou ? 'text-blue-400' : ''}`}
+                                                                >
+                                                                    {driver.name} 
+                                                                </span>
+                                                            );
+                                                        })()}
                                                         <div className="flex items-center gap-1" data-print-transform="translateY(-3px)">
                                                             {isFolga && <span data-print-size="18px" data-print-color="#ef4444" data-print-weight="900" className="text-[10px] uppercase text-red-500 font-black">(FOLGA)</span>}
                                                             {hasGancho && <span data-print-size="18px" data-print-color="#ef4444" data-print-weight="900" className="text-[10px] uppercase text-red-500 font-black hide-on-print">(GANCHO)</span>}

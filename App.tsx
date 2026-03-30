@@ -36,7 +36,7 @@ const AppContent = () => {
     const [isFireConnected, setIsFireConnected] = useState(false);
     const [view, setView] = useState('dashboard');
     const [menuOpen, setMenuOpen] = useState(false);
-    const [data, setData] = useState<any>({ passengers: [], drivers: [], trips: [], notes: [], lostFound: [], blocked_ips: [], newsletter: [], users: [] });
+    const [data, setData] = useState<any>({ passengers: [], drivers: [], trips: [], notes: [], lostFound: [], blocked_ips: [], newsletter: [], users: [], prancheta: [] });
     
     // Estados Específicos
     const [spList, setSpList] = useState<any[]>([]);
@@ -66,8 +66,19 @@ const AppContent = () => {
     const [ganchos, setGanchos] = useState<any>({});
     const [folgasDisabled, setFolgasDisabled] = useState(false);
     const [saturdayRotation, setSaturdayRotation] = useState<any>(null);
-    const weekId = `${new Date().getFullYear()}-${getWeekNumber(new Date())}`;
+    
+    const [uiTicker, setUiTicker] = useState(0);
+    
+    // Prancheta week cycle: Shifts on Wednesday. 
+    // On Sunday March 29, it should point to the week that started on March 25 (Week 13).
+    const weekId = useMemo(() => {
+        const d = new Date();
+        // Shift by 3 days so the weekId changes on Wednesday and represents the current collection week
+        d.setDate(d.getDate() - 3);
+        return `${d.getFullYear()}-W${getWeekNumber(d)}`;
+    }, [uiTicker]);
 
+    const [pranchetaData, setPranchetaData] = useState<any>({});
     const [themeKey, setThemeKey] = useState('default');
     const [geminiKey, setGeminiKey] = useState(localStorage.getItem('nexflow_gemini_key') || '');
     
@@ -95,6 +106,7 @@ const AppContent = () => {
 
     const [billingDate, setBillingDate] = useState(new Date());
     const [pricePerPassenger, setPricePerPassenger] = useState(4);
+    const [pranchetaValue, setPranchetaValue] = useState(20); // Default value
 
     // Modais e Formulários
     const [modal, setModal] = useState<string|null>(null); 
@@ -115,7 +127,6 @@ const AppContent = () => {
     
     const [ipReason, setIpReason] = useState('');
     const [ipToBlock, setIpToBlock] = useState('');
-    const [uiTicker, setUiTicker] = useState(0);
     const [daysRemaining, setDaysRemaining] = useState<string>('');
     const [isNearExpiration, setIsNearExpiration] = useState(false);
     const [isRecurringActive, setIsRecurringActive] = useState(false);
@@ -175,6 +186,38 @@ const AppContent = () => {
     const effectiveFolgas = useMemo(() => {
         return getFolgasForDate(currentOpDate);
     }, [getFolgasForDate, currentOpDate]);
+
+    const billingData = useMemo(() => {
+        const trips = data.trips || [];
+        const month = billingDate.getMonth();
+        const year = billingDate.getFullYear();
+        
+        const filtered = trips.filter((t: any) => {
+            if (!t.date) return false;
+            const d = new Date(t.date + 'T12:00:00');
+            return d.getMonth() === month && d.getFullYear() === year;
+        });
+
+        const groups: any = {};
+        let pending = 0;
+        let paid = 0;
+
+        filtered.forEach((t: any) => {
+            const val = Number(t.value) || 0;
+            const isPaid = t.paymentStatus === 'Pago';
+            if (isPaid) paid += val;
+            else pending += val;
+
+            if (!groups[t.date]) groups[t.date] = { date: t.date, totalValue: 0, trips: [] };
+            groups[t.date].totalValue += val;
+            groups[t.date].trips.push({ ...t, isPaid });
+        });
+
+        return {
+            summary: { pending, paid },
+            groups: Object.values(groups).sort((a: any, b: any) => b.date.localeCompare(a.date))
+        };
+    }, [data.trips, billingDate]);
 
     const [undoAction, setUndoAction] = useState<any>(null);
     const [undoTimer, setUndoTimer] = useState(0);
@@ -643,6 +686,56 @@ const AppContent = () => {
         }
     };
 
+    const togglePranchetaPayment = async (vaga: string) => {
+        if (!db || !user) return;
+        const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
+        const path = tableSystemContext === 'Pg' ? `prancheta/${weekId}/${vaga}` : `${tableSystemContext}/prancheta/${weekId}/${vaga}`;
+        const ref = db.ref(path);
+        const snap = await ref.once('value');
+        const current = snap.val();
+
+        if (current && current.paid) {
+            // Restriction: Only the person who received it or an admin can unmark
+            if (user.role !== 'admin' && current.receivedBy !== user.username) {
+                return notify("Apenas quem recebeu ou um ADMIN pode desmarcar este pagamento.", "error");
+            }
+            await ref.remove();
+            notify(`Pagamento da vaga ${vaga} removido.`, "info");
+        } else {
+            await ref.set({
+                paid: true,
+                receivedBy: user.username,
+                receivedAt: new Date().toISOString()
+            });
+            notify(`Vaga ${vaga} marcada como paga!`, "success");
+        }
+    };
+
+    // Lógica de Notificações Automáticas (Quarta e Sexta)
+    useEffect(() => {
+        if (!user) return;
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+        
+        // Quarta-feira (3): Lembrete de Cobrança
+        if (day === 3) {
+            const lastNotif = localStorage.getItem(`notif_prancheta_wed_${weekId}`);
+            if (lastNotif !== 'true') {
+                showAlert("Dia de Cobrança! 💰", "Hoje é quarta-feira, dia de coletar as pranchetas no sistema PG.", "info");
+                localStorage.setItem(`notif_prancheta_wed_${weekId}`, 'true');
+            }
+        }
+
+        // Sexta-feira (5): Último Dia
+        if (day === 5) {
+            const lastNotif = localStorage.getItem(`notif_prancheta_fri_${weekId}`);
+            if (lastNotif !== 'true') {
+                showAlert("Último Dia de Pagamento! ⚠️", "Hoje é sexta-feira, o último dia para pagar as pranchetas sem ficar riscado na tabela.", "warning");
+                localStorage.setItem(`notif_prancheta_fri_${weekId}`, 'true');
+            }
+        }
+    }, [user, weekId]);
+
     const changeTheme = (t: string) => { setThemeKey(t); if(user) { dbOp('update', 'preferences', { theme: t }); localStorage.setItem(`${user.username}_nexflow_theme`, t); } };
 
     // --- EFEITOS E LOGICA ---
@@ -909,6 +1002,11 @@ const AppContent = () => {
             setFolgasDisabled(!!snap.val());
         });
 
+        const pranchetaRef = db.ref(tableSystemContext === 'Pg' ? `prancheta/${weekId}` : `${tableSystemContext}/prancheta/${weekId}`);
+        const pranchetaCb = pranchetaRef.on('value', (snap: any) => {
+            setPranchetaData(snap.val() || {});
+        });
+
         const satRotRef = db.ref('system_settings/saturday_rotation');
         const satRotCb = satRotRef.on('value', (snap: any) => {
             const val = snap.val();
@@ -947,6 +1045,7 @@ const AppContent = () => {
             ganchosRef.off('value', ganchosCb);
             folgasDisabledRef.off('value', folgasDisabledCb);
             satRotRef.off('value', satRotCb);
+            pranchetaRef.off('value', pranchetaCb);
         }
     }, [db, user, isFireConnected, currentOpDate, lousaDate, systemContext, tableTab, weekId]); // Add weekId
 
@@ -954,10 +1053,15 @@ const AppContent = () => {
         if (!db || !user) return;
 
         const systems = ['Pg', 'Mip', 'Sv'];
-        const coreNodes = ['passengers', 'drivers', 'trips', 'lostFound']; // Added lostFound here
+        const coreNodes = ['passengers', 'drivers', 'trips', 'lostFound', 'prancheta']; // Added lostFound and prancheta here
         const otherNodes = ['notes', 'blocked_ips', 'newsletter', 'users']; // Removed lostFound from here
 
-        let unsubs: any[] = [];
+        const pgSettingsRef = db.ref('system_settings/Pg/pranchetaValue');
+        const pgSettingsCallback = pgSettingsRef.on('value', (snap) => {
+            if (snap.val()) setPranchetaValue(snap.val());
+        });
+
+        let unsubs: any[] = [() => pgSettingsRef.off('value', pgSettingsCallback)];
 
         const fetchData = (system: string, node: string) => {
             const path = system === 'Pg' ? node : `${system}/${node}`;
@@ -993,7 +1097,7 @@ const AppContent = () => {
 
             if (systemContext === 'Mistura') {
                 // Aggregated "Mistura" view
-                const allData: any = { passengers: [], drivers: [], trips: [], lostFound: [] };
+                const allData: any = { passengers: [], drivers: [], trips: [], lostFound: [], prancheta: [] };
                 const promises = systems.flatMap(sys => coreNodes.map(node => fetchData(sys, node)));
                 const results = await Promise.all(promises);
                 
@@ -1278,7 +1382,7 @@ const AppContent = () => {
                         t.driverId === cleanDriverId && 
                         t.date === finalTripDate && 
                         t.vaga === slot.vaga &&
-                        t.time === tripTime &&
+                        // REMOVIDO: t.time === tripTime && // Permite que o usuário ajuste o horário sem criar duplicata
                         (t.isTemp || t.status !== 'Cancelada')
                     );
 
@@ -1486,14 +1590,14 @@ const AppContent = () => {
                                     });
                                 }
                             } else {
-                                // Check if a fixed trip exists for this driver, date, vaga, and time
+                                // Check if a fixed trip exists for this driver, date, vaga
                                 const driverDb = data.drivers.find((d:any) => d.name.toLowerCase() === driverName.toLowerCase());
                                 const cleanDriverId = driverDb?.realId || driverDb?.id;
                                 const fixedExists = data.trips.some((t:any) => 
                                     t.driverId === cleanDriverId && 
                                     t.date === currentOpDate && 
                                     t.vaga === tempVaga &&
-                                    t.time === time &&
+                                    // REMOVIDO: t.time === time && // Permite que o usuário ajuste o horário sem criar duplicata
                                     !t.isTemp &&
                                     t.status !== 'Cancelada'
                                 );
@@ -1578,14 +1682,14 @@ const AppContent = () => {
                                 });
                             }
                         } else {
-                            // Check if a fixed trip exists for this driver, date, vaga, and time
+                            // Check if a fixed trip exists for this driver, date, vaga
                             const driverDb = data.drivers.find((d:any) => d.name.toLowerCase() === driverName.toLowerCase());
                             const cleanDriverId = driverDb?.realId || driverDb?.id;
                             const fixedExists = data.trips.some((t:any) => 
                                 t.driverId === cleanDriverId && 
                                 t.date === currentOpDate && 
                                 t.vaga === vaga && 
-                                t.time === time &&
+                                // REMOVIDO: t.time === time && // Permite que o usuário ajuste o horário sem criar duplicata
                                 !t.isTemp &&
                                 t.status !== 'Cancelada'
                             );
@@ -2222,6 +2326,7 @@ const AppContent = () => {
         payload.ticketPrice = pricePerPassenger;
         // Ensure pricePerPassenger is also updated to reflect current admin setting
         payload.pricePerPassenger = pricePerPassenger;
+        payload.value = (suggestedTrip.occupancy || 0) * (pricePerPassenger || 0);
 
         dbOp(editingTripId ? 'update' : 'create', 'trips', payload);
         
@@ -2541,6 +2646,22 @@ const AppContent = () => {
         window.open(`https://wa.me/55${d.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
     };
 
+    const sendPranchetaBillingMessage = (vaga: string, driverName: string, phone: string) => {
+        if (!phone) return notify("Motorista sem telefone", "error");
+        
+        const template = `📢 AVISO DE VENCIMENTO
+
+Olá ${driverName}, Informamos que o valor da prancheta é de R$ ${pranchetaValue}
+
+Caso o pagamento não seja efetuado até sexta-feira, dentro do horário de funcionamento do escritório das 6:00 até às 20:00, a vaga será automaticamente bloqueado no sábado
+
+⚠️ Importante: enquanto o débito não for quitado, não será possível marcar a vaga,não adiantará insistir!
+
+Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
+
+        window.open(`https://wa.me/55${phone.replace(/\D/g,'')}?text=${encodeURIComponent(template)}`, '_blank');
+    };
+
     const handleGlobalTouchStart = (e:any) => { if(view==='table'||menuOpen)return; globalTouchRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY}; };
     const handleGlobalTouchEnd = (e:any) => { if(view==='table'||menuOpen)return; const dx=e.changedTouches[0].clientX-globalTouchRef.current.x; if(dx>80) setMenuOpen(true); };
 
@@ -2725,7 +2846,11 @@ const AppContent = () => {
                             
                             {/* Tabela Recebe Função para Calcular Listas Futuras */}
                             {view === 'table' && <Tabela 
-                                data={data} theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
+                                data={data} 
+                                pranchetaData={pranchetaData}
+                                weekId={weekId}
+                                uiTicker={uiTicker}
+                                theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
                                 currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
                                 analysisRotatedList={getRotatedList(analysisDate)} tableStatus={tableStatus} 
                                 editName={editName} tempName={tempName} tempVaga={tempVaga} setEditName={setEditName} setTempName={setTempName} setTempVaga={setTempVaga} saveDriverName={saveDriverName} 
@@ -2749,87 +2874,53 @@ const AppContent = () => {
                                 user={user}
                             />}
                             
-                            {(view === 'financeiro' || view === 'billing') && <Financeiro data={data} theme={theme} pricePerPassenger={pricePerPassenger} billingData={(() => { 
-                                const targetMonth = billingDate.getMonth(); 
-                                const targetYear = billingDate.getFullYear(); 
-                                
-                                const validTrips = data.trips.filter((t:any) => { 
-                                    // Inclui "Cancelada" apenas para filtrar fora, aceita "Em andamento" e "Finalizada"
-                                    if (t.status === 'Cancelada' || !t.date) return false; 
-                                    const [y, m, d] = t.date.split('-').map(Number); 
-                                    return (m - 1) === targetMonth && y === targetYear; 
-                                }); 
-                                
-                                const groups:any = {}; 
-                                let totalPending = 0; 
-                                let totalPaid = 0; 
-                                
-                                validTrips.forEach((t:any) => { 
-                                    let value = 0; 
-                                    let pCount = 0; 
+                            {(view === 'financeiro' || view === 'billing') && <Financeiro 
+                                data={data} 
+                                spList={spList}
+                                pranchetaData={pranchetaData}
+                                weekId={weekId}
+                                togglePranchetaPayment={togglePranchetaPayment}
+                                theme={theme} 
+                                 pranchetaValue={pranchetaValue}
+                                 setPranchetaValue={(val: number) => {
+                                     setPranchetaValue(val);
+                                     db.ref('system_settings/Pg/pranchetaValue').set(val);
+                                 }}
+                                 sendPranchetaBillingMessage={sendPranchetaBillingMessage}
+                                 billingData={billingData}
+                                billingDate={billingDate} 
+                                prevBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()-1, 1))} 
+                                nextBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()+1, 1))} 
+                                togglePaymentStatus={(trip:any) => {
+                                    const isPaying = trip.paymentStatus !== 'Pago';
                                     
-                                    if (t.isExtra) { 
-                                        value = parseFloat(t.value) || 0; 
-                                        pCount = 0; 
-                                    } else if (t.isMadrugada) { 
-                                        pCount = t.pCountSnapshot !== undefined ? parseInt(t.pCountSnapshot || 0) : parseInt(t.pCount || 0); 
-                                        // Força 4 reais se não tiver preço salvo
-                                        const unitPrice = t.ticketPrice !== undefined ? Number(t.ticketPrice) : 4; 
-                                        value = pCount * unitPrice; 
-                                    } else { 
-                                        // Lógica para Viagens Normais (Finalizada ou Em Andamento)
-                                        if (t.pCountSnapshot !== undefined && t.pCountSnapshot !== null) {
-                                            pCount = parseInt(t.pCountSnapshot || 0);
-                                        } else if (t.passengersSnapshot) {
-                                            pCount = t.passengersSnapshot.reduce((acc:number, p:any) => acc + parseInt(p.passengerCount || 1), 0);
-                                        } else {
-                                            // Cálculo em tempo real para "Em andamento"
-                                            pCount = data.passengers.filter((p:any) => (t.passengerIds||[]).includes(p.realId || p.id)).reduce((a:number,b:any) => a + parseInt(b.passengerCount||1), 0);
-                                        }
-                                        
-                                        // Força 4 reais se não tiver preço salvo
-                                        const unitPrice = t.ticketPrice !== undefined ? Number(t.ticketPrice) : 4; 
-                                        value = pCount * unitPrice; 
-                                        
-                                        // Caso legado manual
-                                        if (pCount === 0 && t.value) value = parseFloat(t.value); 
-                                    } 
-                                    
-                                    const isPaid = t.paymentStatus === 'Pago'; 
-                                    if (isPaid) totalPaid += value; 
-                                    else totalPending += value; 
-                                    
-                                    const dateKey = t.date; 
-                                    if (!groups[dateKey]) groups[dateKey] = { date: dateKey, trips: [], totalValue: 0 }; 
-                                    groups[dateKey].trips.push({ ...t, pCount, value, isPaid }); 
-                                    groups[dateKey].totalValue += value; 
-                                }); 
-                                
-                                const sortedGroups = Object.values(groups).sort((a:any, b:any) => b.date.localeCompare(a.date)); 
-                                sortedGroups.forEach((g:any) => g.trips.sort((a:any, b:any) => (b.time || '').localeCompare(a.time || ''))); 
-                                
-                                return { groups: sortedGroups, summary: { pending: totalPending, paid: totalPaid, total: totalPending + totalPaid } }; 
-                            })()} billingDate={billingDate} prevBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()-1, 1))} nextBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()+1, 1))} togglePaymentStatus={(trip:any) => {
-                                const isPaying = trip.paymentStatus !== 'Pago';
-                                
-                                // Restrição: Só quem recebeu (ou admin) pode desmarcar
-                                if (!isPaying && trip.receivedBy && trip.receivedBy !== user.username && user.role !== 'admin') {
-                                    return notify(`Apenas ${trip.receivedBy} ou Admin pode desfazer este pagamento.`, 'error');
-                                }
-    
-                                const payload:any = { 
-                                    id: trip.id, 
-                                    paymentStatus: isPaying ? 'Pago' : 'Pendente' 
-                                };
-                                if (isPaying) {
-                                    payload.receivedBy = user.username;
-                                    payload.receivedAt = getTodayDate(); // Usa data YYYY-MM-DD para facilitar filtro
-                                } else {
-                                    payload.receivedBy = null;
-                                    payload.receivedAt = null;
-                                }
-                                dbOp('update', 'trips', payload);
-                            }} sendBillingMessage={sendBillingMessage} del={del} setFormData={setFormData} setModal={setModal} openEditTrip={openEditTrip} user={user} notify={notify} />}
+                                    // Restrição: Só quem recebeu (ou admin) pode desmarcar
+                                    if (!isPaying && trip.receivedBy && trip.receivedBy !== user.username && user.role !== 'admin') {
+                                        return notify(`Apenas ${trip.receivedBy} ou Admin pode desfazer este pagamento.`, 'error');
+                                    }
+        
+                                    const payload:any = { 
+                                        id: trip.id, 
+                                        paymentStatus: isPaying ? 'Pago' : 'Pendente' 
+                                    };
+                                    if (isPaying) {
+                                        payload.receivedBy = user.username;
+                                        payload.receivedAt = getTodayDate(); // Usa data YYYY-MM-DD para facilitar filtro
+                                    } else {
+                                        payload.receivedBy = null;
+                                        payload.receivedAt = null;
+                                    }
+                                    dbOp('update', 'trips', payload);
+                                }} 
+                                sendBillingMessage={sendBillingMessage} 
+                                del={del} 
+                                setFormData={setFormData} 
+                                setModal={setModal} 
+                                openEditTrip={openEditTrip} 
+                                user={user} 
+                                notify={notify} 
+                                systemContext={systemContext}
+                            />}
                             {view === 'achados' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
                             {view === 'lostFound' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
                             {view === 'settings' && <Configuracoes user={user} theme={theme} restartTour={restartTour} setAiModal={setAiModal} geminiKey={geminiKey} setGeminiKey={setGeminiKey} saveApiKey={saveApiKey} ipToBlock={ipToBlock} setIpToBlock={setIpToBlock} blockIp={blockIp} data={{...data, pricePerPassenger}} del={del} ipHistory={ipHistory} ipLabels={ipLabels} saveIpLabel={saveIpLabel} changeTheme={changeTheme} themeKey={themeKey} dbOp={dbOp} notify={notify} showAlert={showAlert} requestConfirm={requestConfirm} setView={setView} daysRemaining={daysRemaining} isNearExpiration={isNearExpiration} systemContext={systemContext} isRecurringActive={isRecurringActive} />}

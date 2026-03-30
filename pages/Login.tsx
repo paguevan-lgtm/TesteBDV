@@ -166,15 +166,15 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
                 <motion.div 
                     className="van-container"
                     animate={{
-                        y: isZooming ? -500 : (focusField === 'pass' ? 10 : (isTyping ? [0, -2, 0] : 0)),
-                        rotate: isTyping && !isZooming ? [0, 0.3, 0] : 0,
+                        y: isZooming ? -500 : (focusField === 'pass' ? 10 : (isTyping ? [0, -1, 0] : 0)),
+                        rotate: isTyping && !isZooming ? [0, 0.1, 0] : 0,
                         rotateX: focusField === 'pass' ? 5 : 0,
                         scale: isZooming ? 0.1 : (isMobile ? 0.65 : 1),
                         opacity: isZooming ? 0 : 1
                     }}
                     transition={{ 
-                        y: isTyping && !isZooming ? { repeat: Infinity, duration: 0.2 } : { type: 'spring', stiffness: 300, damping: 20 },
-                        rotate: isTyping && !isZooming ? { repeat: Infinity, duration: 0.2 } : { duration: 0.3 },
+                        y: isTyping && !isZooming ? { repeat: Infinity, duration: 0.4 } : { type: 'spring', stiffness: 300, damping: 20 },
+                        rotate: isTyping && !isZooming ? { repeat: Infinity, duration: 0.4 } : { duration: 0.3 },
                         scale: { duration: 0.5 },
                         opacity: { duration: 0.5 }
                     }}

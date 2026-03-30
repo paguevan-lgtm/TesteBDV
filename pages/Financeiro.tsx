@@ -3,8 +3,10 @@ import React from 'react';
 import { Icons, Button } from '../components/Shared';
 import { formatDisplayDate, getTodayDate } from '../utils';
 
-export default function Financeiro({ data, theme, billingData, billingDate, prevBillingMonth, nextBillingMonth, togglePaymentStatus, sendBillingMessage, del, setFormData, setModal, openEditTrip, user, notify }: any) {
+export default function Financeiro({ data, theme, billingData, billingDate, prevBillingMonth, nextBillingMonth, togglePaymentStatus, sendBillingMessage, del, setFormData, setModal, openEditTrip, user, notify, systemContext, spList, pranchetaData, togglePranchetaPayment, weekId, pranchetaValue, setPranchetaValue, sendPranchetaBillingMessage }: any) {
     
+    const [financeiroTab, setFinanceiroTab] = React.useState('geral');
+
     // Verifica permissão para ver o total recebido
     const canSeeRevenue = user && (user.role === 'admin' || user.username === 'Breno');
 
@@ -69,7 +71,27 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                 </div>
             </div>
 
-            {/* CAIXA DIÁRIO (NOVO) */}
+            {/* Seletor de Abas (Geral / Prancheta) */}
+            {systemContext === 'Pg' && (
+                <div className="flex bg-black/20 p-1 rounded-xl border border-white/5 stagger-in d-1.5">
+                    <button 
+                        onClick={() => setFinanceiroTab('geral')}
+                        className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${financeiroTab === 'geral' ? 'bg-white/10 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                    >
+                        <Icons.Dollar size={16}/> Geral
+                    </button>
+                    <button 
+                        onClick={() => setFinanceiroTab('prancheta')}
+                        className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${financeiroTab === 'prancheta' ? 'bg-white/10 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                    >
+                        <Icons.Clipboard size={16}/> Prancheta
+                    </button>
+                </div>
+            )}
+
+            {financeiroTab === 'geral' ? (
+                <>
+                    {/* CAIXA DIÁRIO (NOVO) */}
             <div className="stagger-in d-2">
                 <div className={`${theme.card} p-6 rounded-xl border ${theme.border} bg-blue-500/10 border-blue-500/20 relative overflow-hidden`}>
                     <div className="flex justify-between items-start z-10 relative">
@@ -190,7 +212,11 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                                     </>
                                                 )}
                                                 {/* Mostra quem recebeu o pagamento se estiver pago */}
-                                                {/* REMOVIDO: Recebido por: {trip.receivedBy} */}
+                                                {trip.isPaid && trip.receivedBy && (
+                                                    <div className="text-[10px] text-green-500/70 font-medium mt-1 flex items-center gap-1">
+                                                        <Icons.CheckCircle size={10}/> Recebido por {trip.receivedBy}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -242,6 +268,94 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                     );
                 }) : (<div className="text-center py-10 opacity-30 text-sm border-2 border-dashed border-white/10 rounded-xl">Nenhuma viagem registrada em {billingDate.toLocaleDateString('pt-BR', {month:'long'})}.</div>)}
             </div>
+            </>
+            ) : (
+                /* SEÇÃO PRANCHETA (NOVA) */
+                <div className="space-y-6 stagger-in d-5">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                        <h3 className="text-lg font-bold opacity-80 flex items-center gap-2">
+                            <Icons.Clipboard size={20}/> Cobrança Prancheta (Sistema PG)
+                        </h3>
+                        <div className="text-xs font-mono opacity-50 bg-white/5 px-2 py-1 rounded">
+                            Semana: {weekId}
+                        </div>
+                    </div>
+
+                    {/* Editor de Valor da Prancheta (PG) */}
+                    {systemContext === 'Pg' && (
+                        <div className={`${theme.card} p-4 rounded-xl border ${theme.border} bg-yellow-500/5 border-yellow-500/10 flex items-center justify-between gap-4`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-yellow-500/20 rounded-lg text-yellow-400">
+                                    <Icons.Edit size={20}/>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-yellow-400">Valor da Prancheta</div>
+                                    <div className="text-xs opacity-50">Defina o valor semanal por vaga</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg font-bold opacity-50">R$</span>
+                                <input 
+                                    type="number" 
+                                    value={pranchetaValue || 20}
+                                    onChange={(e) => setPranchetaValue(Number(e.target.value))}
+                                    className="w-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 font-bold text-center focus:outline-none focus:border-yellow-500/50 transition-all"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Array.from({ length: 23 }, (_, i) => i.toString().padStart(2, '0')).map(vaga => {
+                            const driverInVaga = spList.find((s:any) => s.vaga === vaga);
+                            const payment = pranchetaData[vaga];
+                            const isPaid = payment?.paid;
+                            const driverInfo = driverInVaga ? data.drivers.find((d:any) => d.name === driverInVaga.name) : null;
+
+                            return (
+                                <div key={vaga} className={`${theme.card} p-3 rounded-xl border ${theme.border} flex items-center justify-between gap-3 transition-all hover:bg-white/5`}>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-mono font-bold text-sm border ${isPaid ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-white/40'}`}>
+                                            {vaga}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className={`font-bold truncate ${isPaid ? 'opacity-50 line-through' : ''}`}>
+                                                {driverInVaga ? driverInVaga.name : <span className="opacity-20 italic">Vazia</span>}
+                                            </div>
+                                            {isPaid && (
+                                                <div className="text-[10px] text-green-500/70 font-medium">
+                                                    Recebido por {payment.receivedBy}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        {driverInVaga && (
+                                            <button 
+                                                onClick={() => {
+                                                    const phone = driverInfo?.phone || '';
+                                                    sendPranchetaBillingMessage(vaga, driverInVaga.name, phone);
+                                                }}
+                                                className="p-2 rounded-lg bg-green-600/20 text-green-500 hover:bg-green-600/30 transition-colors"
+                                                title="WhatsApp"
+                                            >
+                                                <Icons.Phone size={14}/>
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={() => togglePranchetaPayment(vaga)}
+                                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] border transition-all active:scale-95 ${isPaid ? 'bg-green-500 text-white border-green-500' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}
+                                        >
+                                            {isPaid ? 'PAGO' : 'PENDENTE'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
