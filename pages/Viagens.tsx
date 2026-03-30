@@ -177,9 +177,8 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
                         pCount = Array.from(pListMap.values()).reduce((a:any,b:any)=>a+parseInt(b.passengerCount||1),0);
                     }
                     
-                    // Preço por passageiro: usa o da viagem se existir (snapshot), senão usa o valor legado (4)
-                    // Não usar data.pricePerPassenger aqui para evitar alterar viagens antigas ao mudar a configuração
-                    const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : 4;
+                    // Preço por passageiro: usa o da viagem se existir (snapshot), senão usa o valor legado ou o atual da configuração
+                    const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : (data.pricePerPassenger || 4));
                     const totalValue = pCount * unitPrice;
 
                     // Recupera passageiros (snapshot ou live)

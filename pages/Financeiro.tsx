@@ -3,7 +3,7 @@ import React from 'react';
 import { Icons, Button } from '../components/Shared';
 import { formatDisplayDate, getTodayDate } from '../utils';
 
-export default function Financeiro({ data, theme, billingData, billingDate, prevBillingMonth, nextBillingMonth, togglePaymentStatus, sendBillingMessage, del, setFormData, setModal, openEditTrip, user, notify, systemContext, spList, pranchetaData, togglePranchetaPayment, weekId, pranchetaValue, setPranchetaValue, sendPranchetaBillingMessage }: any) {
+export default function Financeiro({ data, theme, billingData, billingDate, prevBillingMonth, nextBillingMonth, togglePaymentStatus, sendBillingMessage, del, setFormData, setModal, openEditTrip, user, notify, systemContext, spList, pranchetaData, togglePranchetaPayment, weekId, pranchetaValue, setPranchetaValue, sendPranchetaBillingMessage, pricePerPassenger }: any) {
     
     const [financeiroTab, setFinanceiroTab] = React.useState('geral');
 
@@ -27,7 +27,7 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
             value = parseFloat(t.value) || 0; 
         } else if (t.isMadrugada) { 
             pCount = t.pCountSnapshot !== undefined ? parseInt(t.pCountSnapshot || 0) : parseInt(t.pCount || 0); 
-            const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : 4); 
+            const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : (pricePerPassenger || 4)); 
             value = pCount * unitPrice; 
         } else { 
             if (t.pCountSnapshot !== undefined && t.pCountSnapshot !== null) {
@@ -37,7 +37,7 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
             } else {
                 pCount = data.passengers.filter((p:any) => (t.passengerIds||[]).includes(p.realId || p.id)).reduce((a:number,b:any) => a + parseInt(b.passengerCount||1), 0);
             }
-            const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : 4); 
+            const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : (pricePerPassenger || 4)); 
             value = pCount * unitPrice; 
             if (pCount === 0 && t.value) value = parseFloat(t.value); 
         }

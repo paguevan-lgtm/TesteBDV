@@ -203,21 +203,39 @@ const AppContent = () => {
         let paid = 0;
 
         filtered.forEach((t: any) => {
-            const val = Number(t.value) || 0;
+            // Calculate value if not present or 0
+            let val = Number(t.value) || 0;
+            if (val === 0 && !t.isExtra) {
+                let pCount = 0;
+                if (t.isMadrugada) {
+                    pCount = t.pCountSnapshot !== undefined ? parseInt(t.pCountSnapshot || 0) : parseInt(t.pCount || 0);
+                } else {
+                    if (t.pCountSnapshot !== undefined && t.pCountSnapshot !== null) {
+                        pCount = parseInt(t.pCountSnapshot || 0);
+                    } else if (t.passengersSnapshot) {
+                        pCount = t.passengersSnapshot.reduce((acc: number, p: any) => acc + parseInt(p.passengerCount || 1), 0);
+                    } else {
+                        pCount = (data.passengers || []).filter((p: any) => (t.passengerIds || []).includes(p.realId || p.id)).reduce((a: number, b: any) => a + parseInt(b.passengerCount || 1), 0);
+                    }
+                }
+                const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : pricePerPassenger);
+                val = pCount * unitPrice;
+            }
+
             const isPaid = t.paymentStatus === 'Pago';
             if (isPaid) paid += val;
             else pending += val;
 
             if (!groups[t.date]) groups[t.date] = { date: t.date, totalValue: 0, trips: [] };
             groups[t.date].totalValue += val;
-            groups[t.date].trips.push({ ...t, isPaid });
+            groups[t.date].trips.push({ ...t, value: val, isPaid });
         });
 
         return {
             summary: { pending, paid },
             groups: Object.values(groups).sort((a: any, b: any) => b.date.localeCompare(a.date))
         };
-    }, [data.trips, billingDate]);
+    }, [data.trips, data.passengers, billingDate, pricePerPassenger]);
 
     const [undoAction, setUndoAction] = useState<any>(null);
     const [undoTimer, setUndoTimer] = useState(0);
@@ -1379,10 +1397,10 @@ const AppContent = () => {
                     // Use realId for comparison to handle Mistura -> Specific system transitions safely
                     const cleanDriverId = driverDb.realId || driverDb.id;
                     const exists = data.trips.some((t:any) => 
-                        t.driverId === cleanDriverId && 
+                        (t.driverId === cleanDriverId || (t.driverName && t.driverName.toLowerCase().trim() === driverDb.name.toLowerCase().trim())) && 
                         t.date === finalTripDate && 
                         t.vaga === slot.vaga &&
-                        // REMOVIDO: t.time === tripTime && // Permite que o usuário ajuste o horário sem criar duplicata
+                        t.time === tripTime && // Adicionado conforme pedido: "E NAQUELA HORA"
                         (t.isTemp || t.status !== 'Cancelada')
                     );
 
@@ -1686,10 +1704,10 @@ const AppContent = () => {
                             const driverDb = data.drivers.find((d:any) => d.name.toLowerCase() === driverName.toLowerCase());
                             const cleanDriverId = driverDb?.realId || driverDb?.id;
                             const fixedExists = data.trips.some((t:any) => 
-                                t.driverId === cleanDriverId && 
+                                (t.driverId === cleanDriverId || (t.driverName && t.driverName.toLowerCase().trim() === driverName.toLowerCase().trim())) && 
                                 t.date === currentOpDate && 
                                 t.vaga === vaga && 
-                                // REMOVIDO: t.time === time && // Permite que o usuário ajuste o horário sem criar duplicata
+                                t.time === time && // Adicionado conforme pedido: "E NAQUELA HORA"
                                 !t.isTemp &&
                                 t.status !== 'Cancelada'
                             );
@@ -2292,7 +2310,7 @@ const AppContent = () => {
             isTemp: false,
             passengerIds: passengerIdsToSave,
             passengersSnapshot: passengersSnapshotToSave,
-            vaga: sp ? sp.vaga : undefined
+            vaga: suggestedTrip.vaga || (sp ? sp.vaga : undefined)
         };
 
         if (formData.isMadrugada) {
@@ -2386,7 +2404,8 @@ const AppContent = () => {
             time: t.time, 
             passengers: pax, 
             occupancy: occ, 
-            date: t.date 
+            date: t.date,
+            vaga: t.vaga
         });
         setModal('trip');
     };
@@ -2920,6 +2939,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                 user={user} 
                                 notify={notify} 
                                 systemContext={systemContext}
+                                pricePerPassenger={pricePerPassenger}
                             />}
                             {view === 'achados' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
                             {view === 'lostFound' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
