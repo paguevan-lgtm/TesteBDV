@@ -45,12 +45,7 @@ const TempTripTimer = ({ date, time }: any) => {
 
 export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker }: any) {
 
-    const isPranchetaOverdue = React.useMemo(() => {
-        const now = new Date();
-        const day = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-        // Segunda (1) e Terça (2) são os dias de "atraso" antes da nova cobrança na quarta
-        return [1, 2].includes(day);
-    }, [uiTicker]);
+    const isPranchetaOverdue = true; // Always check against duePranchetaData
 
     const currentEffectiveFolgas = React.useMemo(() => {
         if (getFolgasForDate) {

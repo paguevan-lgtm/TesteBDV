@@ -3,7 +3,7 @@ import React from 'react';
 import { Icons, Button } from '../components/Shared';
 import { formatDisplayDate, getTodayDate } from '../utils';
 
-export default function Financeiro({ data, theme, billingData, billingDate, prevBillingMonth, nextBillingMonth, togglePaymentStatus, sendBillingMessage, del, setFormData, setModal, openEditTrip, user, notify, systemContext, spList, pranchetaData, togglePranchetaPayment, weekId, pranchetaValue, setPranchetaValue, sendPranchetaBillingMessage, pricePerPassenger }: any) {
+export default function Financeiro({ data, theme, billingData, billingDate, prevBillingMonth, nextBillingMonth, togglePaymentStatus, sendBillingMessage, del, setFormData, setModal, openEditTrip, user, notify, systemContext, spList, pranchetaData, togglePranchetaPayment, weekId, pranchetaWeekOffset, setPranchetaWeekOffset, pranchetaValue, setPranchetaValue, sendPranchetaBillingMessage, pricePerPassenger }: any) {
     
     const [financeiroTab, setFinanceiroTab] = React.useState('geral');
 
@@ -29,9 +29,6 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
             pCount = t.pCountSnapshot !== undefined ? parseInt(t.pCountSnapshot || 0) : parseInt(t.pCount || 0); 
             const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (pricePerPassenger || 4); 
             value = pCount * unitPrice; 
-            if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
-                value += (Number(pranchetaValue) || 20);
-            }
         } else { 
             if (t.pCountSnapshot !== undefined && t.pCountSnapshot !== null) {
                 pCount = parseInt(t.pCountSnapshot || 0);
@@ -42,9 +39,6 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
             }
             const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (pricePerPassenger || 4); 
             value = pCount * unitPrice; 
-            if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
-                value += (Number(pranchetaValue) || 20);
-            }
             if (pCount === 0 && t.value) value = parseFloat(t.value); 
         }
         return value;
@@ -282,8 +276,32 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                         <h3 className="text-lg font-bold opacity-80 flex items-center gap-2">
                             <Icons.Clipboard size={20}/> Cobrança Prancheta (Sistema PG)
                         </h3>
-                        <div className="text-xs font-mono opacity-50 bg-white/5 px-2 py-1 rounded">
-                            Semana: {weekId}
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => setPranchetaWeekOffset(pranchetaWeekOffset - 1)}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                                title="Semana Anterior"
+                            >
+                                <Icons.ChevronLeft size={16} />
+                            </button>
+                            <div className="text-xs font-mono opacity-50 bg-white/5 px-2 py-1 rounded">
+                                Semana: {weekId}
+                            </div>
+                            <button 
+                                onClick={() => setPranchetaWeekOffset(pranchetaWeekOffset + 1)}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                                title="Próxima Semana"
+                            >
+                                <Icons.ChevronRight size={16} />
+                            </button>
+                            {pranchetaWeekOffset !== 0 && (
+                                <button 
+                                    onClick={() => setPranchetaWeekOffset(0)}
+                                    className="text-[10px] uppercase font-bold text-blue-400 hover:text-blue-300 ml-2"
+                                >
+                                    Atual
+                                </button>
+                            )}
                         </div>
                     </div>
 

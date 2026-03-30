@@ -69,16 +69,35 @@ const AppContent = () => {
     
     const [uiTicker, setUiTicker] = useState(0);
     
-    // Prancheta week cycle: Shifts on Wednesday. 
-    // On Sunday March 29, it should point to the week that started on March 25 (Week 13).
-    const weekId = useMemo(() => {
+    const currentWeekId = useMemo(() => {
         const d = new Date();
-        // Shift by 3 days so the weekId changes on Wednesday and represents the current collection week
-        d.setDate(d.getDate() - 3);
         return `${d.getFullYear()}-W${getWeekNumber(d)}`;
     }, [uiTicker]);
 
-    const [pranchetaData, setPranchetaData] = useState<any>({});
+    const dueWeekId = useMemo(() => {
+        const d = new Date();
+        const day = d.getDay();
+        if (day >= 1 && day <= 5) {
+            d.setDate(d.getDate() - 7);
+        }
+        return `${d.getFullYear()}-W${getWeekNumber(d)}`;
+    }, [uiTicker]);
+
+    const [pranchetaWeekOffset, setPranchetaWeekOffset] = useState(0);
+    const viewedWeekId = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() + (pranchetaWeekOffset * 7));
+        return `${d.getFullYear()}-W${getWeekNumber(d)}`;
+    }, [uiTicker, pranchetaWeekOffset]);
+
+    const tableWeekId = useMemo(() => {
+        const d = new Date(currentOpDate + 'T12:00:00');
+        return `${d.getFullYear()}-W${getWeekNumber(d)}`;
+    }, [currentOpDate]);
+
+    const [currentPranchetaData, setCurrentPranchetaData] = useState<any>({});
+    const [viewedPranchetaData, setViewedPranchetaData] = useState<any>({});
+    const [duePranchetaData, setDuePranchetaData] = useState<any>({});
     const [themeKey, setThemeKey] = useState('default');
     const [geminiKey, setGeminiKey] = useState(localStorage.getItem('nexflow_gemini_key') || '');
     
@@ -220,9 +239,6 @@ const AppContent = () => {
                 }
                 const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (pricePerPassenger || 4);
                 val = pCount * unitPrice;
-                if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
-                    val += (Number(pranchetaValue) || 20);
-                }
             }
 
             const isPaid = t.paymentStatus === 'Pago';
@@ -710,7 +726,7 @@ const AppContent = () => {
     const togglePranchetaPayment = async (vaga: string) => {
         if (!db || !user) return;
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
-        const path = tableSystemContext === 'Pg' ? `prancheta/${weekId}/${vaga}` : `${tableSystemContext}/prancheta/${weekId}/${vaga}`;
+        const path = tableSystemContext === 'Pg' ? `prancheta/${viewedWeekId}/${vaga}` : `${tableSystemContext}/prancheta/${viewedWeekId}/${vaga}`;
         const ref = db.ref(path);
         const snap = await ref.once('value');
         const current = snap.val();
@@ -740,22 +756,22 @@ const AppContent = () => {
         
         // Quarta-feira (3): Lembrete de Cobrança
         if (day === 3) {
-            const lastNotif = localStorage.getItem(`notif_prancheta_wed_${weekId}`);
+            const lastNotif = localStorage.getItem(`notif_prancheta_wed_${currentWeekId}`);
             if (lastNotif !== 'true') {
                 showAlert("Dia de Cobrança! 💰", "Hoje é quarta-feira, dia de coletar as pranchetas no sistema PG.", "info");
-                localStorage.setItem(`notif_prancheta_wed_${weekId}`, 'true');
+                localStorage.setItem(`notif_prancheta_wed_${currentWeekId}`, 'true');
             }
         }
 
         // Sexta-feira (5): Último Dia
         if (day === 5) {
-            const lastNotif = localStorage.getItem(`notif_prancheta_fri_${weekId}`);
+            const lastNotif = localStorage.getItem(`notif_prancheta_fri_${currentWeekId}`);
             if (lastNotif !== 'true') {
                 showAlert("Último Dia de Pagamento! ⚠️", "Hoje é sexta-feira, o último dia para pagar as pranchetas sem ficar riscado na tabela.", "warning");
-                localStorage.setItem(`notif_prancheta_fri_${weekId}`, 'true');
+                localStorage.setItem(`notif_prancheta_fri_${currentWeekId}`, 'true');
             }
         }
-    }, [user, weekId]);
+    }, [user, currentWeekId]);
 
     const changeTheme = (t: string) => { setThemeKey(t); if(user) { dbOp('update', 'preferences', { theme: t }); localStorage.setItem(`${user.username}_nexflow_theme`, t); } };
 
@@ -1008,7 +1024,7 @@ const AppContent = () => {
             } 
         });
 
-        const swapsRef = db.ref(`folgas_swaps/${weekId}`);
+        const swapsRef = db.ref(`folgas_swaps/${tableWeekId}`);
         const swapsCb = swapsRef.on('value', (snap: any) => {
             setSwaps(snap.val() || {});
         });
@@ -1023,9 +1039,19 @@ const AppContent = () => {
             setFolgasDisabled(!!snap.val());
         });
 
-        const pranchetaRef = db.ref(tableSystemContext === 'Pg' ? `prancheta/${weekId}` : `${tableSystemContext}/prancheta/${weekId}`);
-        const pranchetaCb = pranchetaRef.on('value', (snap: any) => {
-            setPranchetaData(snap.val() || {});
+        const currentPranchetaRef = db.ref(tableSystemContext === 'Pg' ? `prancheta/${currentWeekId}` : `${tableSystemContext}/prancheta/${currentWeekId}`);
+        const currentPranchetaCb = currentPranchetaRef.on('value', (snap: any) => {
+            setCurrentPranchetaData(snap.val() || {});
+        });
+
+        const duePranchetaRef = db.ref(tableSystemContext === 'Pg' ? `prancheta/${dueWeekId}` : `${tableSystemContext}/prancheta/${dueWeekId}`);
+        const duePranchetaCb = duePranchetaRef.on('value', (snap: any) => {
+            setDuePranchetaData(snap.val() || {});
+        });
+
+        const viewedPranchetaRef = db.ref(tableSystemContext === 'Pg' ? `prancheta/${viewedWeekId}` : `${tableSystemContext}/prancheta/${viewedWeekId}`);
+        const viewedPranchetaCb = viewedPranchetaRef.on('value', (snap: any) => {
+            setViewedPranchetaData(snap.val() || {});
         });
 
         const satRotRef = db.ref('system_settings/saturday_rotation');
@@ -1066,9 +1092,11 @@ const AppContent = () => {
             ganchosRef.off('value', ganchosCb);
             folgasDisabledRef.off('value', folgasDisabledCb);
             satRotRef.off('value', satRotCb);
-            pranchetaRef.off('value', pranchetaCb);
+            currentPranchetaRef.off('value', currentPranchetaCb);
+            duePranchetaRef.off('value', duePranchetaCb);
+            viewedPranchetaRef.off('value', viewedPranchetaCb);
         }
-    }, [db, user, isFireConnected, currentOpDate, lousaDate, systemContext, tableTab, weekId]); // Add weekId
+    }, [db, user, isFireConnected, currentOpDate, lousaDate, systemContext, tableTab, tableWeekId, currentWeekId, dueWeekId, viewedWeekId]);
 
     useEffect(() => {
         if (!db || !user) return;
@@ -1076,13 +1104,6 @@ const AppContent = () => {
         const systems = ['Pg', 'Mip', 'Sv'];
         const coreNodes = ['passengers', 'drivers', 'trips', 'lostFound', 'prancheta']; // Added lostFound and prancheta here
         const otherNodes = ['notes', 'blocked_ips', 'newsletter', 'users']; // Removed lostFound from here
-
-        const pgSettingsRef = db.ref('system_settings/Pg/pranchetaValue');
-        const pgSettingsCallback = pgSettingsRef.on('value', (snap) => {
-            if (snap.val()) setPranchetaValue(snap.val());
-        });
-
-        let unsubs: any[] = [() => pgSettingsRef.off('value', pgSettingsCallback)];
 
         const fetchData = (system: string, node: string) => {
             const path = system === 'Pg' ? node : `${system}/${node}`;
@@ -1100,10 +1121,18 @@ const AppContent = () => {
             });
         };
 
+        let unsubs: any[] = [];
+
         const setupListeners = async () => {
             // Clear previous listeners
             unsubs.forEach(fn => fn());
             unsubs = [];
+
+            const pgSettingsRef = db.ref('system_settings/Pg/pranchetaValue');
+            const pgSettingsCallback = pgSettingsRef.on('value', (snap) => {
+                if (snap.val() !== null) setPranchetaValue(snap.val());
+            });
+            unsubs.push(() => pgSettingsRef.off('value', pgSettingsCallback));
 
             // Listen to non-system-specific nodes
             otherNodes.forEach(node => {
@@ -2366,9 +2395,6 @@ const AppContent = () => {
         
         const pCount = suggestedTrip.occupancy || 0;
         let val = pCount * (pricePerPassenger || 0);
-        if (pCount > 0 && (systemContext === 'Pg')) {
-            val += (Number(pranchetaValue) || 20);
-        }
         payload.value = val;
 
         dbOp(editingTripId ? 'update' : 'create', 'trips', payload);
@@ -2896,8 +2922,8 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             {/* Tabela Recebe Função para Calcular Listas Futuras */}
                             {view === 'table' && <Tabela 
                                 data={data} 
-                                pranchetaData={pranchetaData}
-                                weekId={weekId}
+                                pranchetaData={duePranchetaData}
+                                weekId={dueWeekId}
                                 uiTicker={uiTicker}
                                 theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
                                 currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
@@ -2926,8 +2952,10 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             {(view === 'financeiro' || view === 'billing') && <Financeiro 
                                 data={data} 
                                 spList={spList}
-                                pranchetaData={pranchetaData}
-                                weekId={weekId}
+                                pranchetaData={viewedPranchetaData}
+                                weekId={viewedWeekId}
+                                pranchetaWeekOffset={pranchetaWeekOffset}
+                                setPranchetaWeekOffset={setPranchetaWeekOffset}
                                 togglePranchetaPayment={togglePranchetaPayment}
                                 theme={theme} 
                                  pranchetaValue={pranchetaValue}

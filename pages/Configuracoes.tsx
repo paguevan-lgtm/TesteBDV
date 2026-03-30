@@ -579,7 +579,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                             theme={theme} 
                                                             type="number"
                                                             placeholder="4.00"
-                                                            value={prices[sys] || 4}
+                                                            value={prices[sys] === 0 ? '' : (prices[sys] || 4)}
                                                             onChange={(e: any) => updatePrice(sys, Number(e.target.value))}
                                                         />
                                                     </div>
@@ -593,7 +593,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                                 theme={theme} 
                                                                 type="number"
                                                                 placeholder="20.00"
-                                                                value={pranchetaValue || 20}
+                                                                value={pranchetaValue === 0 ? '' : pranchetaValue}
                                                                 onChange={(e: any) => setPranchetaValue(Number(e.target.value))}
                                                             />
                                                         </div>
@@ -612,7 +612,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                     theme={theme} 
                                                     type="number"
                                                     placeholder="4.00"
-                                                    value={data.pricePerPassenger || 4}
+                                                    value={data.pricePerPassenger === 0 ? '' : (data.pricePerPassenger || 4)}
                                                     onChange={(e: any) => updatePrice(systemContext, Number(e.target.value))}
                                                 />
                                             </div>
@@ -627,7 +627,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                         theme={theme} 
                                                         type="number"
                                                         placeholder="20.00"
-                                                        value={pranchetaValue || 20}
+                                                        value={pranchetaValue === 0 ? '' : pranchetaValue}
                                                         onChange={(e: any) => setPranchetaValue(Number(e.target.value))}
                                                     />
                                                 </div>
