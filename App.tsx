@@ -218,8 +218,11 @@ const AppContent = () => {
                         pCount = (data.passengers || []).filter((p: any) => (t.passengerIds || []).includes(p.realId || p.id)).reduce((a: number, b: any) => a + parseInt(b.passengerCount || 1), 0);
                     }
                 }
-                const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : pricePerPassenger);
+                const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (pricePerPassenger || 4);
                 val = pCount * unitPrice;
+                if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
+                    val += (Number(pranchetaValue) || 20);
+                }
             }
 
             const isPaid = t.paymentStatus === 'Pago';
@@ -1399,7 +1402,6 @@ const AppContent = () => {
                     const exists = data.trips.some((t:any) => 
                         (t.driverId === cleanDriverId || (t.driverName && t.driverName.toLowerCase().trim() === driverDb.name.toLowerCase().trim())) && 
                         t.date === finalTripDate && 
-                        t.vaga === slot.vaga &&
                         t.time === tripTime && // Adicionado conforme pedido: "E NAQUELA HORA"
                         (t.isTemp || t.status !== 'Cancelada')
                     );
@@ -1427,10 +1429,24 @@ const AppContent = () => {
                 }
             });
 
-            // 2. CLEANUP: REMOVE EXPIRED OR INVALID TEMP TRIPS
+            // 2. CLEANUP: REMOVE EXPIRED, INVALID OR REDUNDANT TEMP TRIPS
             data.trips.forEach((t:any) => {
                 if (t.isTemp && t.status !== 'Finalizada') {
                     
+                    // Check if a fixed trip already exists for this driver/time/date
+                    const fixedExists = data.trips.some((ft:any) => 
+                        !ft.isTemp && 
+                        ft.status !== 'Cancelada' &&
+                        ft.date === t.date && 
+                        ft.time === t.time &&
+                        (ft.driverId === t.driverId || (ft.driverName && t.driverName && ft.driverName.toLowerCase().trim() === t.driverName.toLowerCase().trim()))
+                    );
+
+                    if (fixedExists) {
+                        db.ref(systemContext === 'Pg' ? 'trips' : `${systemContext}/trips`).child(t.realId || t.id).remove();
+                        return;
+                    }
+
                     const activeSlot = activeSlots.find((s:any) => s.vaga === t.vaga);
 
                     if (!activeSlot) {
@@ -1706,7 +1722,6 @@ const AppContent = () => {
                             const fixedExists = data.trips.some((t:any) => 
                                 (t.driverId === cleanDriverId || (t.driverName && t.driverName.toLowerCase().trim() === driverName.toLowerCase().trim())) && 
                                 t.date === currentOpDate && 
-                                t.vaga === vaga && 
                                 t.time === time && // Adicionado conforme pedido: "E NAQUELA HORA"
                                 !t.isTemp &&
                                 t.status !== 'Cancelada'
@@ -2097,7 +2112,11 @@ const AppContent = () => {
              }
         }
         
-        const dr = data.drivers.find((d:any) => d.id === formData.driverId);
+        let dr = data.drivers.find((d:any) => d.id === formData.driverId);
+        if (!dr && formData.driverId) {
+            dr = data.drivers.find((d:any) => d.realId === formData.driverId);
+        }
+        
         // If no driver found by ID (MIP case), construct a dummy driver object from name
         const driverObj = dr || (formData.driverName ? { name: formData.driverName, capacity: 15, id: 'temp' } : null);
         
@@ -2221,13 +2240,14 @@ const AppContent = () => {
             }
         }
 
-        setSuggestedTrip({
-            driver: dr,
+        setSuggestedTrip((prev: any) => ({
+            ...prev,
+            driver: driverObj,
             time: tripTime,
             passengers: selectedPassengers,
             occupancy: currentOccupancy,
             date: tripDate
-        });
+        }));
         
         if (selectedPassengers.length < candidates.length) {
             notify(`Limite de ${driverCapacity} lugares atingido. Priorizando rota da maior família.`, "info");
@@ -2301,7 +2321,7 @@ const AppContent = () => {
         
         const payload: any = {
             id: tripId,
-            driverId: suggestedTrip.driver.id,
+            driverId: suggestedTrip.driver.realId || suggestedTrip.driver.id,
             driverName: suggestedTrip.driver.name,
             date: finalDate,
             time: finalTime,
@@ -2342,9 +2362,14 @@ const AppContent = () => {
         });
         
         payload.ticketPrice = pricePerPassenger;
-        // Ensure pricePerPassenger is also updated to reflect current admin setting
         payload.pricePerPassenger = pricePerPassenger;
-        payload.value = (suggestedTrip.occupancy || 0) * (pricePerPassenger || 0);
+        
+        const pCount = suggestedTrip.occupancy || 0;
+        let val = pCount * (pricePerPassenger || 0);
+        if (pCount > 0 && (systemContext === 'Pg')) {
+            val += (Number(pranchetaValue) || 20);
+        }
+        payload.value = val;
 
         dbOp(editingTripId ? 'update' : 'create', 'trips', payload);
         
@@ -2678,13 +2703,18 @@ Caso o pagamento não seja efetuado até sexta-feira, dentro do horário de func
 
 Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
 
-        window.open(`https://wa.me/55${phone.replace(/\D/g,'')}?text=${encodeURIComponent(template)}`, '_blank');
+        const encodedMsg = encodeURIComponent(template)
+            .replace(/%F0%9F%93%A2/g, '📢')
+            .replace(/%E2%9A%A0%EF%B8%8F/g, '⚠️')
+            .replace(/%20/g, ' '); // Use literal spaces for better compatibility
+
+        window.open(`https://wa.me/55${phone.replace(/\D/g,'')}?text=${encodedMsg}`, '_blank');
     };
 
     const handleGlobalTouchStart = (e:any) => { if(view==='table'||menuOpen)return; globalTouchRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY}; };
     const handleGlobalTouchEnd = (e:any) => { if(view==='table'||menuOpen)return; const dx=e.changedTouches[0].clientX-globalTouchRef.current.x; if(dx>80) setMenuOpen(true); };
 
-    if (isLoading) return <div id="loader" className="fixed inset-0 bg-black flex items-center justify-center"><div className="text-amber-500 font-bold">CARREGANDO...</div></div>;
+    if (isLoading) return <div id="app-loader" className="fixed inset-0 bg-black flex items-center justify-center"><div className="text-amber-500 font-bold">CARREGANDO...</div></div>;
     if (!isAuthenticated) return <LoginScreen />;
 
     // ... (Main Render with updated props)
@@ -2858,7 +2888,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             }} dbOp={dbOp} setAiModal={setAiModal} user={user} systemContext={systemContext} notify={notify} />}
                             {view === 'passengers' && <Passageiros data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} systemContext={systemContext} />}
                             {view === 'drivers' && <Motoristas data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} />}
-                            {view === 'trips' && <Viagens data={{...data, pricePerPassenger}} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} openEditTrip={openEditTrip} updateTripStatus={updateTripStatus} del={del} duplicateTrip={duplicateTrip} notify={notify} systemContext={systemContext} />}
+                            {view === 'trips' && <Viagens data={{...data, pricePerPassenger}} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} openEditTrip={openEditTrip} updateTripStatus={updateTripStatus} del={del} duplicateTrip={duplicateTrip} notify={notify} systemContext={systemContext} pranchetaValue={pranchetaValue} />}
                             {view === 'appointments' && <Agendamentos data={data} theme={theme} setFormData={setFormData} setModal={setModal} dbOp={dbOp} setSuggestedTrip={setSuggestedTrip} setEditingTripId={setEditingTripId} notify={notify} requestConfirm={requestConfirm} systemContext={systemContext} />}
                             {view === 'folgasGanchos' && <FolgasGanchos data={data} theme={theme} dbOp={dbOp} notify={notify} effectiveFolgas={effectiveFolgas} swaps={swaps} ganchos={ganchos} systemContext={systemContext} user={user} folgasDisabled={folgasDisabled} saturdayRotation={saturdayRotation} />}
 
@@ -2943,7 +2973,39 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             />}
                             {view === 'achados' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
                             {view === 'lostFound' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
-                            {view === 'settings' && <Configuracoes user={user} theme={theme} restartTour={restartTour} setAiModal={setAiModal} geminiKey={geminiKey} setGeminiKey={setGeminiKey} saveApiKey={saveApiKey} ipToBlock={ipToBlock} setIpToBlock={setIpToBlock} blockIp={blockIp} data={{...data, pricePerPassenger}} del={del} ipHistory={ipHistory} ipLabels={ipLabels} saveIpLabel={saveIpLabel} changeTheme={changeTheme} themeKey={themeKey} dbOp={dbOp} notify={notify} showAlert={showAlert} requestConfirm={requestConfirm} setView={setView} daysRemaining={daysRemaining} isNearExpiration={isNearExpiration} systemContext={systemContext} isRecurringActive={isRecurringActive} />}
+                            {view === 'settings' && <Configuracoes 
+                                user={user} 
+                                theme={theme} 
+                                restartTour={restartTour} 
+                                setAiModal={setAiModal} 
+                                geminiKey={geminiKey} 
+                                setGeminiKey={setGeminiKey} 
+                                saveApiKey={saveApiKey} 
+                                ipToBlock={ipToBlock} 
+                                setIpToBlock={setIpToBlock} 
+                                blockIp={blockIp} 
+                                data={{...data, pricePerPassenger}} 
+                                del={del} 
+                                ipHistory={ipHistory} 
+                                ipLabels={ipLabels} 
+                                saveIpLabel={saveIpLabel} 
+                                changeTheme={changeTheme} 
+                                themeKey={themeKey} 
+                                dbOp={dbOp} 
+                                notify={notify} 
+                                showAlert={showAlert} 
+                                requestConfirm={requestConfirm} 
+                                setView={setView} 
+                                daysRemaining={daysRemaining} 
+                                isNearExpiration={isNearExpiration} 
+                                systemContext={systemContext} 
+                                isRecurringActive={isRecurringActive} 
+                                pranchetaValue={pranchetaValue}
+                                setPranchetaValue={(val: number) => {
+                                    setPranchetaValue(val);
+                                    db.ref('system_settings/Pg/pranchetaValue').set(val);
+                                }}
+                            />}
                             {view === 'manageUsers' && <GerenciarUsuarios data={data} theme={theme} setView={setView} dbOp={dbOp} notify={notify} user={user} requestConfirm={requestConfirm} />}
                         </div>
                     </div>

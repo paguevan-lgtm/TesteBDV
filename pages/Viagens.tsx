@@ -43,7 +43,7 @@ const TempTripTimer = ({ date, time }: any) => {
     return <span>{timeLeft}</span>;
 };
 
-export default function Viagens({ data, theme, searchTerm, openEditTrip, updateTripStatus, del, duplicateTrip, notify, systemContext }: any) {
+export default function Viagens({ data, theme, searchTerm, openEditTrip, updateTripStatus, del, duplicateTrip, notify, systemContext, pranchetaValue }: any) {
     const [historyDate, setHistoryDate] = useState(new Date());
     const [expandedDays, setExpandedDays] = useState<any>({});
 
@@ -178,8 +178,11 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
                     }
                     
                     // Preço por passageiro: usa o da viagem se existir (snapshot), senão usa o valor legado ou o atual da configuração
-                    const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : (data.pricePerPassenger || 4));
-                    const totalValue = pCount * unitPrice;
+                    const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (data.pricePerPassenger || 4);
+                    let totalValue = pCount * unitPrice;
+                    if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
+                        totalValue += (Number(pranchetaValue) || 20);
+                    }
 
                     // Recupera passageiros (snapshot ou live)
                     let tripPassengers = [];
@@ -301,6 +304,8 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
                                                                     <span>{t.status}</span>
                                                                     <span>•</span>
                                                                     <span>{pCount} pass</span>
+                                                                    <span>•</span>
+                                                                    <span className="text-green-400 font-bold">R$ {((pCount * (Number(t.pricePerPassenger) || Number(t.ticketPrice) || (data.pricePerPassenger || 4))) + ((t.system === 'Pg' || (!t.system && systemContext === 'Pg')) ? (Number(pranchetaValue) || 20) : 0)).toFixed(2)}</span>
                                                                 </div>
                                                                 </div>
                                                         </div>

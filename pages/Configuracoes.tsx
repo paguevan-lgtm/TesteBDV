@@ -7,7 +7,7 @@ import { getAvatarUrl, generateUniqueId, getTodayDate, compressImage, parseUserA
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../components/SubscriptionLock';
 
-export default function Configuracoes({ user, theme, restartTour, setAiModal, geminiKey, setGeminiKey, saveApiKey, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive }: any) {
+export default function Configuracoes({ user, theme, restartTour, setAiModal, geminiKey, setGeminiKey, saveApiKey, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive, pranchetaValue, setPranchetaValue }: any) {
     const { logout } = useAuth();
     const { triggerEarlyRenewal } = useSubscription();
     
@@ -570,31 +570,69 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 {isSuperAdmin ? (
                                     <div className="space-y-4">
                                         {['Pg', 'Mip', 'Sv'].map(sys => (
-                                            <div key={sys} className="flex flex-col gap-1">
-                                                <label className="text-xs font-bold uppercase opacity-60">{sys}</label>
+                                            <div key={sys} className="space-y-3">
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-xs font-bold uppercase opacity-60">{sys} - Passageiro</label>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-lg font-bold">R$</span>
+                                                        <Input 
+                                                            theme={theme} 
+                                                            type="number"
+                                                            placeholder="4.00"
+                                                            value={prices[sys] || 4}
+                                                            onChange={(e: any) => updatePrice(sys, Number(e.target.value))}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {sys === 'Pg' && (
+                                                    <div className="flex flex-col gap-1">
+                                                        <label className="text-xs font-bold uppercase opacity-60">{sys} - Prancheta</label>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-lg font-bold">R$</span>
+                                                            <Input 
+                                                                theme={theme} 
+                                                                type="number"
+                                                                placeholder="20.00"
+                                                                value={pranchetaValue || 20}
+                                                                onChange={(e: any) => setPranchetaValue(Number(e.target.value))}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs font-bold uppercase opacity-60">Valor por Passageiro</label>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg font-bold">R$</span>
+                                                <Input 
+                                                    theme={theme} 
+                                                    type="number"
+                                                    placeholder="4.00"
+                                                    value={data.pricePerPassenger || 4}
+                                                    onChange={(e: any) => updatePrice(systemContext, Number(e.target.value))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {systemContext === 'Pg' && (
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-xs font-bold uppercase opacity-60">Valor da Prancheta</label>
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-lg font-bold">R$</span>
                                                     <Input 
                                                         theme={theme} 
                                                         type="number"
-                                                        placeholder="4.00"
-                                                        value={prices[sys] || 4}
-                                                        onChange={(e: any) => updatePrice(sys, Number(e.target.value))}
+                                                        placeholder="20.00"
+                                                        value={pranchetaValue || 20}
+                                                        onChange={(e: any) => setPranchetaValue(Number(e.target.value))}
                                                     />
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-lg font-bold">R$</span>
-                                        <Input 
-                                            theme={theme} 
-                                            type="number"
-                                            placeholder="4.00"
-                                            value={data.pricePerPassenger || 4}
-                                            onChange={(e: any) => updatePrice(systemContext, Number(e.target.value))}
-                                        />
+                                        )}
                                     </div>
                                 )}
                             </div>

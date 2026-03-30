@@ -27,8 +27,11 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
             value = parseFloat(t.value) || 0; 
         } else if (t.isMadrugada) { 
             pCount = t.pCountSnapshot !== undefined ? parseInt(t.pCountSnapshot || 0) : parseInt(t.pCount || 0); 
-            const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : (pricePerPassenger || 4)); 
+            const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (pricePerPassenger || 4); 
             value = pCount * unitPrice; 
+            if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
+                value += (Number(pranchetaValue) || 20);
+            }
         } else { 
             if (t.pCountSnapshot !== undefined && t.pCountSnapshot !== null) {
                 pCount = parseInt(t.pCountSnapshot || 0);
@@ -37,8 +40,11 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
             } else {
                 pCount = data.passengers.filter((p:any) => (t.passengerIds||[]).includes(p.realId || p.id)).reduce((a:number,b:any) => a + parseInt(b.passengerCount||1), 0);
             }
-            const unitPrice = t.pricePerPassenger !== undefined ? Number(t.pricePerPassenger) : (t.ticketPrice !== undefined ? Number(t.ticketPrice) : (pricePerPassenger || 4)); 
+            const unitPrice = Number(t.pricePerPassenger) || Number(t.ticketPrice) || (pricePerPassenger || 4); 
             value = pCount * unitPrice; 
+            if (pCount > 0 && (t.system === 'Pg' || (!t.system && systemContext === 'Pg'))) {
+                value += (Number(pranchetaValue) || 20);
+            }
             if (pCount === 0 && t.value) value = parseFloat(t.value); 
         }
         return value;
@@ -281,29 +287,7 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                         </div>
                     </div>
 
-                    {/* Editor de Valor da Prancheta (PG) */}
-                    {systemContext === 'Pg' && (
-                        <div className={`${theme.card} p-4 rounded-xl border ${theme.border} bg-yellow-500/5 border-yellow-500/10 flex items-center justify-between gap-4`}>
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-yellow-500/20 rounded-lg text-yellow-400">
-                                    <Icons.Edit size={20}/>
-                                </div>
-                                <div>
-                                    <div className="text-sm font-bold text-yellow-400">Valor da Prancheta</div>
-                                    <div className="text-xs opacity-50">Defina o valor semanal por vaga</div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold opacity-50">R$</span>
-                                <input 
-                                    type="number" 
-                                    value={pranchetaValue || 20}
-                                    onChange={(e) => setPranchetaValue(Number(e.target.value))}
-                                    className="w-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 font-bold text-center focus:outline-none focus:border-yellow-500/50 transition-all"
-                                />
-                            </div>
-                        </div>
-                    )}
+                    {/* Editor de Valor da Prancheta (PG) - MOVIDO PARA MENU DO USUÁRIO */}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {Array.from({ length: 23 }, (_, i) => i.toString().padStart(2, '0')).map(vaga => {
