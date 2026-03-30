@@ -38,10 +38,10 @@ const SortableRow = ({ id, children, disabled }: any) => {
     };
 
     return (
-        <div ref={setNodeRef} style={style} className="relative group">
+        <div ref={setNodeRef} style={style} className="relative group cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
             {children}
             {!disabled && (
-                <div {...attributes} {...listeners} className="absolute right-0 top-1/2 -translate-y-1/2 -mr-6 cursor-grab active:cursor-grabbing p-1 opacity-0 group-hover:opacity-40 transition-opacity z-20">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 -mr-6 p-1 opacity-0 group-hover:opacity-40 transition-opacity z-20">
                     <Icons.GripVertical size={16}/>
                 </div>
             )}
@@ -602,7 +602,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                         <div className="flex w-full sm:w-auto justify-end items-center gap-2">
                             <button 
                                 onClick={addNullLousaItem} 
-                                className="p-2 bg-white/10 text-white/70 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs" 
+                                className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs" 
                                 title="Adicionar Pulo de Horário"
                             >
                                 <Icons.Plus size={16}/> Pular Horário
@@ -655,17 +655,17 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                         // isNullItem
                                         const t = new Date(startLousaTime.getTime() + lousaEffectiveIndex * 30 * 60000); 
                                         displayContent = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-                                        timeClass = 'opacity-50';
+                                        timeClass = 'opacity-100';
                                                     lousaEffectiveIndex++;
                                     }
                                     
                                     return ( 
                                         <SortableRow key={item.id || `lousa-${item.vaga}-${index}`} id={item.id} disabled={isLocked}>
                                             <div 
-                                                className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border ${isExpired ? 'bg-red-900/10 border-red-500/20 opacity-80' : (isRiscado ? 'bg-red-900/10 border-red-500/20 opacity-60' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20 opacity-70' : 'bg-black/20 border-white/5'))}`}
+                                                className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border ${isExpired ? 'bg-red-900/10 border-red-500/20 opacity-100' : (isRiscado ? 'bg-red-900/10 border-red-500/20 opacity-100' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20 opacity-100' : 'bg-black/20 border-white/5'))}`}
                                             > 
                                         <div 
-                                            className={`w-[40px] h-[40px] rounded relative flex items-center justify-center flex-shrink-0 ${isNullItem ? 'opacity-0' : (isExpired ? 'bg-red-500/20 text-red-300' : 'bg-white/10 opacity-70')}`}
+                                            className={`w-[40px] h-[40px] rounded relative flex items-center justify-center flex-shrink-0 ${isNullItem ? 'opacity-0' : (isExpired ? 'bg-red-500/20 text-red-300' : 'bg-white/10 opacity-100')}`}
                                             data-print-bg="transparent"
                                         >
                                             <div 
@@ -689,7 +689,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                             data-print-decoration={(isRiscado || isExpired || isBaixou) ? "line-through" : "none"}
                                             data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
                                             data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                            className={`font-bold text-base whitespace-nowrap overflow-hidden text-ellipsis ${isRiscado || isExpired || isBaixou ? 'line-through' : ''} ${isExpired || isBaixou ? 'opacity-60' : ''}`}
+                                            className={`font-bold text-base whitespace-nowrap overflow-hidden text-ellipsis ${isRiscado || isExpired || isBaixou ? 'line-through' : ''} ${isExpired || isBaixou ? 'opacity-100' : ''}`}
                                         >
                                             {driver.name}
                                         </span> 
@@ -753,7 +753,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                         <div className="flex flex-wrap gap-2 items-center justify-between md:justify-end w-full md:w-auto">
                             <button 
                                 onClick={addNullMadrugadaItem} 
-                                className="p-2 bg-white/10 text-white/70 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs" 
+                                className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs" 
                                 title="Adicionar Pulo de Horário"
                             >
                                 <Icons.Plus size={16}/> Pular Horário
@@ -794,7 +794,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                     const displayQtd = trip ? (trip.pCountSnapshot || trip.pCount) : (madrugadaDisplayDate === currentOpDate ? mData.qtd : '');
 
                                     let rowClass = `flex flex-col md:flex-row items-center gap-2 p-3 rounded-lg border`;
-                                    if (isCancelled) rowClass += ` bg-red-900/10 border-red-500/30 opacity-70`;
+                                    if (isCancelled) rowClass += ` bg-red-900/10 border-red-500/30 opacity-100`;
                                     else if (isFinished) rowClass += ` bg-green-900/10 border-green-500/30`;
                                     else rowClass += ` bg-black/20 border-white/5`;
 
@@ -803,7 +803,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                             <div className={rowClass}> 
                                     <div className="flex items-center gap-3 w-full md:w-auto flex-1 relative min-w-0"> 
                                         <div className="opacity-30 hide-on-print flex-shrink-0"><Icons.List size={14}/></div> 
-                                        <button onClick={() => removeMadrugadaVaga(vaga)} className="text-red-400 opacity-50 hover:opacity-100 hide-on-print flex-shrink-0"><Icons.Trash size={14}/></button> 
+                                        <button onClick={() => removeMadrugadaVaga(vaga)} className="text-red-400 opacity-100 hover:opacity-100 hide-on-print flex-shrink-0"><Icons.Trash size={14}/></button> 
                                         <button onClick={() => toggleMadrugadaRiscado(vaga)} className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${mData.riscado ? 'text-red-400' : 'text-white/30'} hide-on-print`}> <Icons.Slash size={14}/> </button> 
                                         <div 
                                             className={`relative font-mono text-sm bg-indigo-500/20 text-indigo-300 w-[35px] h-[30px] min-w-[35px] rounded flex items-center justify-center flex-shrink-0 leading-none pt-[1px] print:bg-transparent ${isNullMadrugada ? 'opacity-0' : ''}`}
@@ -831,7 +831,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                                     data-print-decoration={(mData.riscado || isCancelled) ? "line-through" : "none"}
                                                     data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
                                                     data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                                    className={`inline-block font-bold text-lg whitespace-nowrap overflow-visible leading-tight ${mData.riscado || isCancelled ? 'line-through opacity-50' : ''}`}
+                                                    className={`inline-block font-bold text-lg whitespace-nowrap overflow-visible leading-tight ${mData.riscado || isCancelled ? 'line-through opacity-100' : ''}`}
                                                 >
                                                     {isNullMadrugada ? "🚫 HORÁRIO VAGO" : driver.name}
                                                 </span> 
@@ -844,10 +844,10 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                                     {!mData.riscado && ( 
                                         <div className="flex items-center gap-2 w-full md:w-auto md:justify-end flex-shrink-0 mt-2 md:mt-0"> 
                                             <div className="flex gap-2 hide-on-print w-full md:w-auto items-center">
-                                                <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-20 text-center text-white/70">
+                                                <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-20 text-center text-white">
                                                     {displayQtd || '-'}
                                                 </div>
-                                                <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-32 text-center text-white/70 text-sm">
+                                                <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-32 text-center text-white text-sm">
                                                     {displayTime || '-'}
                                                 </div>
                                                 

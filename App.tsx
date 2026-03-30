@@ -2775,7 +2775,12 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
             <div className={`h-[100dvh] w-full overflow-hidden ${theme.bg} ${theme.text} font-sans flex`} 
                  onTouchStart={handleGlobalTouchStart} 
                  onTouchEnd={handleGlobalTouchEnd}
-                 onContextMenu={(e) => { e.preventDefault(); setCmdOpen(true); }} // ACESSO RÁPIDO (BOTÃO DIREITO)
+                 onContextMenu={(e) => { 
+                     if (window.matchMedia('(pointer: fine)').matches) {
+                         e.preventDefault(); 
+                         setCmdOpen(true); 
+                     }
+                 }} // ACESSO RÁPIDO (BOTÃO DIREITO)
             >
                  {user && user.username === 'Breno' && (
                     <div className={`fixed top-2 left-1/2 -translate-x-1/2 z-50 bg-gray-800/90 backdrop-blur-md p-1 rounded-full flex items-center gap-1 border border-white/10 shadow-xl transition-all duration-300 ${isSystemSelectorExpanded ? 'w-auto px-2' : 'w-10 h-10 justify-center'}`}>

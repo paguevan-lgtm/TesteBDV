@@ -42,7 +42,9 @@ const SortableMenuItem = ({ item, isMobile, view, setView, setMenuOpen, theme }:
         <div 
             ref={setNodeRef} 
             style={style}
-            className="relative rounded-xl mb-1 group"
+            className="relative rounded-xl mb-1 group cursor-grab active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
         >
             <button 
                 id={`menu-btn-${item.id}${isMobile ? '-mobile' : ''}`} 
@@ -58,7 +60,7 @@ const SortableMenuItem = ({ item, isMobile, view, setView, setMenuOpen, theme }:
                     <div className="text-sm font-bold">{item.l}</div>
                     <div className="text-[10px] opacity-50">{item.d}</div>
                 </div>
-                <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 opacity-0 group-hover:opacity-40 transition-opacity">
+                <div className="p-1 opacity-0 group-hover:opacity-40 transition-opacity">
                     <Icons.GripVertical size={14}/>
                 </div>
             </button>
