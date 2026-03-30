@@ -314,13 +314,25 @@ export const ClockWidget = ({ theme }: any) => {
         const int = setInterval(() => setTime(new Date()), 1000);
         return () => clearInterval(int);
     }, []);
+    const formatTime = () => {
+        const h = time.getHours().toString().padStart(2, '0');
+        const m = time.getMinutes().toString().padStart(2, '0');
+        return `${h}:${m}`;
+    };
+
+    const formatDate = () => {
+        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        return `${weekdays[time.getDay()]}, ${time.getDate().toString().padStart(2, '0')} ${months[time.getMonth()]}`;
+    };
+
     return (
-        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center`}>
-            <div className="text-2xl sm:text-3xl font-black tabular-nums tracking-tighter">
-                {time.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center text-white`}>
+            <div className="text-xl sm:text-3xl font-black tabular-nums tracking-tighter">
+                {formatTime()}
             </div>
-            <div className="text-[9px] sm:text-xs opacity-60 uppercase font-bold tracking-wider mt-1 leading-tight">
-                {time.toLocaleDateString('pt-BR', {weekday: 'short', day: '2-digit', month: 'short'}).replace('.', '')}
+            <div className="text-[8px] sm:text-xs opacity-70 uppercase font-bold tracking-wider mt-1 leading-tight">
+                {formatDate()}
             </div>
         </div>
     );
@@ -353,8 +365,18 @@ export const WeatherWidget = ({ theme, location }: any) => {
         return () => clearInterval(interval);
     }, [location]);
 
-    if (loading) return <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center`}>...</div>;
-    if (!weather) return null;
+    if (loading) return (
+        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center text-white`}>
+            <LoadingSpinner size={20} className="opacity-50" />
+        </div>
+    );
+    
+    if (!weather) return (
+        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center text-white opacity-50`}>
+            <Icons.Cloud size={20} className="mb-1" />
+            <span className="text-[8px] font-bold uppercase">Sem Dados</span>
+        </div>
+    );
 
     const getWeatherInfo = (code: number, isDay: number) => {
         // WMO Weather interpretation codes (WW)
@@ -378,11 +400,11 @@ export const WeatherWidget = ({ theme, location }: any) => {
     const info = getWeatherInfo(weather.weather_code, weather.is_day);
     
     return (
-        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full relative overflow-hidden group text-center`}>
+        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full relative overflow-hidden group text-center text-white`}>
             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="text-2xl sm:text-3xl mb-1 animate-pulse-slow">{info.icon}</div>
-            <div className="text-[10px] sm:text-xs font-bold opacity-80 leading-tight">{location}</div>
-            <div className="text-[9px] sm:text-[10px] opacity-50 mt-0.5 leading-tight">{weather.temperature_2m}°C • {info.label}</div>
+            <div className="text-xl sm:text-3xl mb-1 animate-pulse-slow shrink-0">{info.icon}</div>
+            <div className="text-[9px] sm:text-xs font-bold opacity-90 leading-tight truncate w-full">{location}</div>
+            <div className="text-[8px] sm:text-[10px] opacity-60 mt-0.5 leading-tight truncate w-full">{weather.temperature_2m}°C • {info.label}</div>
         </div>
     );
 };

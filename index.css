@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Safari Backdrop Blur Fix */
+.backdrop-blur-md {
+  -webkit-backdrop-filter: blur(12px);
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 8px;
