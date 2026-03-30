@@ -310,29 +310,25 @@ export const Input = ({ label, value, onChange, type='text', placeholder, theme,
 
 export const ClockWidget = ({ theme }: any) => {
     const [time, setTime] = useState(new Date());
+    
     useEffect(() => {
         const int = setInterval(() => setTime(new Date()), 1000);
         return () => clearInterval(int);
     }, []);
-    const formatTime = () => {
-        const h = time.getHours().toString().padStart(2, '0');
-        const m = time.getMinutes().toString().padStart(2, '0');
-        return `${h}:${m}`;
-    };
 
-    const formatDate = () => {
-        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        return `${weekdays[time.getDay()]}, ${time.getDate().toString().padStart(2, '0')} ${months[time.getMonth()]}`;
-    };
+    const h = time.getHours().toString().padStart(2, '0');
+    const m = time.getMinutes().toString().padStart(2, '0');
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const dateStr = `${weekdays[time.getDay()]}, ${time.getDate()} ${months[time.getMonth()]}`;
 
     return (
-        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center text-white`}>
-            <div className="text-xl sm:text-3xl font-black tabular-nums tracking-tighter">
-                {formatTime()}
+        <div className={`${theme.card} p-3 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center text-center text-white relative z-30 min-h-[100px] w-full`} style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)' }}>
+            <div className="text-2xl sm:text-3xl font-black tracking-tighter leading-none text-white">
+                {h}:{m}
             </div>
-            <div className="text-[8px] sm:text-xs opacity-70 uppercase font-bold tracking-wider mt-1 leading-tight">
-                {formatDate()}
+            <div className="text-[10px] sm:text-xs opacity-80 uppercase font-bold tracking-wider mt-2 leading-tight text-white/90">
+                {dateStr}
             </div>
         </div>
     );
@@ -366,15 +362,16 @@ export const WeatherWidget = ({ theme, location }: any) => {
     }, [location]);
 
     if (loading) return (
-        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center text-white`}>
-            <LoadingSpinner size={20} className="opacity-50" />
+        <div className={`${theme.card} p-3 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center min-h-[100px] h-full text-center text-white w-full`} style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)' }}>
+            <LoadingSpinner size={24} className="text-white opacity-70" />
+            <span className="text-[8px] font-bold uppercase mt-2 opacity-50">Carregando...</span>
         </div>
     );
     
     if (!weather) return (
-        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full text-center text-white opacity-50`}>
-            <Icons.Cloud size={20} className="mb-1" />
-            <span className="text-[8px] font-bold uppercase">Sem Dados</span>
+        <div className={`${theme.card} p-3 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center min-h-[100px] h-full text-center text-white w-full opacity-60`} style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)' }}>
+            <Icons.Cloud size={24} className="mb-1 text-white" />
+            <span className="text-[8px] font-bold uppercase text-white">Sem Dados</span>
         </div>
     );
 
@@ -400,11 +397,17 @@ export const WeatherWidget = ({ theme, location }: any) => {
     const info = getWeatherInfo(weather.weather_code, weather.is_day);
     
     return (
-        <div className={`${theme.card} p-2 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center h-full relative overflow-hidden group text-center text-white`}>
+        <div className={`${theme.card} p-3 sm:p-4 rounded-2xl border ${theme.border} flex flex-col justify-center items-center relative overflow-hidden group text-center text-white z-30 min-h-[100px] w-full`} style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)' }}>
             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="text-xl sm:text-3xl mb-1 animate-pulse-slow shrink-0">{info.icon}</div>
-            <div className="text-[9px] sm:text-xs font-bold opacity-90 leading-tight truncate w-full">{location}</div>
-            <div className="text-[8px] sm:text-[10px] opacity-60 mt-0.5 leading-tight truncate w-full">{weather.temperature_2m}°C • {info.label}</div>
+            <div className="mb-1 shrink-0 flex items-center justify-center text-white">
+                {info.icon}
+            </div>
+            <div className="text-[10px] sm:text-xs font-bold opacity-100 leading-tight w-full text-white">
+                {location}
+            </div>
+            <div className="text-[9px] sm:text-[10px] opacity-80 mt-1 leading-tight w-full text-white/90">
+                {weather.temperature_2m}°C • {info.label}
+            </div>
         </div>
     );
 };

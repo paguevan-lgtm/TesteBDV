@@ -240,7 +240,7 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
             )}
 
             {/* HERO SECTION: Greeting & Context */}
-            <div className={`relative overflow-hidden rounded-3xl stagger-in d-1 shadow-2xl transition-all duration-700 ${activeFestive ? 'ring-2 ring-white/20' : ''}`}>
+            <div className={`relative overflow-hidden rounded-3xl stagger-in d-1 shadow-2xl transition-all duration-700 ${activeFestive ? 'ring-2 ring-white/20' : ''}`} style={{ isolation: 'isolate', WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)' }}>
                 
                 {/* Background Decor - Base */}
                 <div className={`absolute inset-0 ${theme.primary} opacity-20 transition-colors duration-500`}></div>
@@ -248,15 +248,18 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                 {/* Festive Gradient Overlay */}
                 {activeFestive && <div className={`absolute inset-0 bg-gradient-to-r ${activeFestive.gradient} mix-blend-overlay opacity-80`}></div>}
                 
+                {/* Background Blur Overlay - Separate div for iOS Safari stability */}
+                <div className="absolute inset-0 bg-white/5 backdrop-blur-md z-0" style={{ WebkitBackdropFilter: 'blur(12px)' }}></div>
+                
                 <div className="absolute -right-10 -top-10 w-64 h-64 bg-amber-500/30 rounded-full blur-3xl"></div>
                 <div className="absolute -left-10 bottom-0 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl"></div>
 
-                <div className={`relative z-10 p-5 md:p-8 flex flex-col md:flex-row md:items-end justify-between gap-6 border ${theme.border} bg-white/5 backdrop-blur-md text-white`}>
+                <div className={`relative z-10 p-5 md:p-8 flex flex-col md:flex-row md:items-end justify-between gap-6 border ${theme.border} text-white`}>
                     {/* Particles moved inside to avoid backdrop-blur */}
                     {renderParticles()}
                     
                     {/* Greeting Section - Left (Top on Mobile) */}
-                    <div className="flex-1 w-full min-w-0">
+                    <div className="flex-1 w-full min-w-0 relative z-10">
                         {/* Wrapper para garantir que o ícone fique alinhado ao topo, à direita do texto */}
                         <div className="flex justify-between items-start mb-3 gap-2">
                             <h1 className="text-3xl md:text-4xl font-black tracking-tight drop-shadow-md leading-tight max-w-[85%]">
@@ -268,23 +271,23 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                         {/* Phrase / Pill Area */}
                         <div className="min-h-[30px]">
                             {activeFestive ? (
-                                <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 bg-white/10 border border-white/20 px-3 py-1.5 rounded-xl shadow-sm backdrop-blur-md max-w-full">
+                                <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 bg-white/20 border border-white/30 px-3 py-1.5 rounded-xl shadow-sm max-w-full">
                                     <span className="text-xs md:text-sm font-bold leading-tight">{activeFestive.phrase}</span>
-                                    <span className="text-[10px] uppercase font-bold opacity-60 border-l border-white/30 pl-2 tracking-wider whitespace-nowrap">{activeFestive.range}</span>
+                                    <span className="text-[10px] uppercase font-bold opacity-70 border-l border-white/40 pl-2 tracking-wider whitespace-nowrap">{activeFestive.range}</span>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-2 font-medium text-sm text-white/80">
+                                <div className="flex items-center gap-2 font-medium text-sm text-white/90">
                                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.5)]"></span>
                                     <span>{motivational}</span>
                                 </div>
-                            )}
+                            ) }
                         </div>
                     </div>
                     
                     {/* Widgets Section - Right (Bottom on Mobile) */}
                     <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full md:w-auto md:min-w-[280px] relative z-20">
-                        <ClockWidget theme={{...theme, card: `${innerBg} border ${theme.border} h-full min-h-[100px] flex flex-col justify-center text-white`, inner: 'bg-white/10'}} />
-                        <WeatherWidget location={systemContext === 'Pg' ? 'PG' : systemContext === 'Sv' ? 'SV' : systemContext === 'Mip' ? 'Mongaguá' : 'PG'} theme={{...theme, card: `${innerBg} border ${theme.border} h-full min-h-[100px] flex flex-col justify-center text-white`, inner: 'bg-white/10'}} />
+                        <ClockWidget key={`clock-${systemContext}`} theme={{...theme, card: `${innerBg} border ${theme.border} text-white`, inner: 'bg-white/10'}} />
+                        <WeatherWidget key={`weather-${systemContext}`} location={systemContext === 'Pg' ? 'PG' : systemContext === 'Sv' ? 'SV' : systemContext === 'Mip' ? 'Mongaguá' : 'PG'} theme={{...theme, card: `${innerBg} border ${theme.border} text-white`, inner: 'bg-white/10'}} />
                     </div>
                 </div>
             </div>
