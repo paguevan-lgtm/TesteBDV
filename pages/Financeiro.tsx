@@ -165,14 +165,16 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${trip.isPaid ? 'bg-green-500' : 'bg-red-500'}`}></div>
                                         
                                         <div className="flex items-center gap-4 w-full md:w-auto">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg bg-white/5 border border-white/10 shrink-0`}>
-                                                {trip.isExtra ? <Icons.Car size={24}/> : (trip.isMadrugada ? <Icons.Moon size={24}/> : trip.time.split(':')[0] + 'h')}
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold bg-white/5 border border-white/10 shrink-0 ${(!trip.isExtra && !trip.isMadrugada && trip.time && trip.time.length > 3) ? 'text-xs' : 'text-lg'}`}>
+                                                {trip.isExtra ? <Icons.Car size={24}/> : (trip.isMadrugada ? <Icons.Moon size={24}/> : (
+                                                    trip.time && trip.time.toLowerCase().includes('madrugada') ? 'Mad.' : (trip.time && trip.time.includes(':') ? trip.time.split(':')[0] + 'h' : trip.time)
+                                                ))}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 {trip.isExtra ? (
                                                     <>
-                                                        <div className="font-bold text-lg flex items-center gap-2 flex-wrap">
-                                                            {trip.driverName}
+                                                        <div className="font-bold text-lg flex items-center gap-2 flex-wrap min-w-0">
+                                                            <span className="truncate">{trip.driverName}</span>
                                                             <div className="flex gap-1">
                                                                 <span className="text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase shrink-0">Extra</span>
                                                                 <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30 uppercase shrink-0">{trip.extraType || 'Frete'}</span>
@@ -188,8 +190,8 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                                     </>
                                                 ) : trip.isMadrugada ? (
                                                     <>
-                                                            <div className="font-bold text-lg flex items-center gap-2">
-                                                            {trip.driverName}
+                                                            <div className="font-bold text-lg flex items-center gap-2 min-w-0">
+                                                            <span className="truncate">{trip.driverName}</span>
                                                             <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase shrink-0">Madrugada</span>
                                                         </div>
                                                         <div className="text-sm opacity-60 flex items-center gap-2">
@@ -200,8 +202,8 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <div className="font-bold text-lg flex items-center gap-2">
-                                                            {trip.driverName}
+                                                        <div className="font-bold text-lg flex items-center gap-2 min-w-0">
+                                                            <span className="truncate">{trip.driverName}</span>
                                                             {trip.isTemp && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30 uppercase shrink-0">Temp</span>}
                                                         </div>
                                                         <div className="text-sm opacity-60 flex items-center gap-2">

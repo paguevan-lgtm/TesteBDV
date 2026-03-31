@@ -476,6 +476,83 @@ export const AlertModal = ({ isOpen, title, message, onClose, theme, type='warni
     );
 };
 
+export const AdminAuthModal = ({ isOpen, onClose, onAuth, theme, users }: any) => {
+    const [user, setUser] = useState('');
+    const [pass, setPass] = useState('');
+    const [error, setError] = useState('');
+
+    if (!isOpen) return null;
+    const t = theme || THEMES.default;
+
+    const handleAuth = () => {
+        const admin = (users || []).find((u: any) => 
+            u.username.toLowerCase() === user.toLowerCase() && 
+            u.pass === pass && 
+            u.role === 'admin'
+        );
+
+        if (admin) {
+            onAuth();
+            setUser('');
+            setPass('');
+            setError('');
+        } else {
+            setError('Usuário ou senha de administrador incorretos.');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+            <div className={`${t.card} w-full max-w-sm p-6 rounded-2xl border ${t.border} shadow-2xl relative`}>
+                <button onClick={onClose} className="absolute top-4 right-4 opacity-40 hover:opacity-100 transition-opacity">
+                    <Icons.X size={20}/>
+                </button>
+                <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center mb-4">
+                    <Icons.Lock size={24}/>
+                </div>
+                <h3 className="text-xl font-bold mb-2">Autorização Admin</h3>
+                <p className="text-sm opacity-70 mb-6 leading-relaxed">
+                    Comportamento estranho detectado. Para continuar excluindo dados, é necessária a autorização de um administrador.
+                </p>
+                
+                <div className="space-y-4 mb-6">
+                    <Input 
+                        label="Usuário Admin" 
+                        value={user} 
+                        onChange={(e:any) => setUser(e.target.value)} 
+                        placeholder="Nome do usuário"
+                        theme={t}
+                    />
+                    <Input 
+                        label="Senha" 
+                        type="password"
+                        value={pass} 
+                        onChange={(e:any) => setPass(e.target.value)} 
+                        placeholder="Senha do admin"
+                        theme={t}
+                    />
+                    {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-white/5 hover:bg-white/10 transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={handleAuth}
+                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-amber-600 hover:bg-amber-500 text-white shadow-lg transition-transform active:scale-95"
+                    >
+                        Autorizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const CommandPalette = ({ isOpen, onClose, theme, actions }: any) => {
     const [query, setQuery] = useState('');
     const inputRef = useRef<any>(null);

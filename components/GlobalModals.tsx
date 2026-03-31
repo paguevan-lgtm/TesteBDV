@@ -84,7 +84,7 @@ export const GlobalModals = ({
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
                 <div className={`${theme.card} w-full max-w-lg p-6 rounded-2xl border ${theme.border} shadow-2xl`}>
                     <h3 className="text-xl font-bold mb-2 flex items-center gap-2"><Icons.Stars className="text-amber-400"/> Cadastro Mágico</h3>
-                    <p className="text-sm opacity-60 mb-4">Fale ou digite (ex: "João vai pro Boqueirão pagando Pix")</p>
+                    <p className="text-sm opacity-60 mb-4">Fale ou digite (ex: "João está no Boqueirão rua Jaú 336, telefone XX e vai pagar no Pix")</p>
                     
                     <textarea 
                         className="w-full h-32 bg-black/20 p-4 rounded-xl border border-white/10 mb-4 text-base text-white outline-none focus:border-white/30 transition-colors" 
@@ -246,7 +246,26 @@ export const GlobalModals = ({
                     
                     {modal === 'reschedule' && (<div className="space-y-6 anim-fade"><div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm text-blue-200 flex items-center gap-3"><Icons.Clock size={20} className="shrink-0"/><div>Defina o novo horário para <span className="font-bold text-white text-base block">{formData.name}</span></div></div><div className="py-2"><Input theme={theme} label="Novo Horário (HH:mm)" type="text" mask="time" placeholder="HH:mm" maxLength={5} value={formData.time || ''} onChange={(e:any) => setFormData({...formData, time: e.target.value})} autoFocus/></div><div className="pt-2 grid grid-cols-2 gap-3"><Button theme={theme} variant="secondary" onClick={()=>setModal(null)}>Cancelar</Button><Button theme={theme} onClick={() => { save('reschedule'); }} icon={Icons.Check}>Salvar</Button></div></div>)}
                     
-                    {modal === 'lostFound' && (<><Input themeKey={themeKey} label="O que foi encontrado?" value={formData.description||''} onChange={(e:any)=>setFormData({...formData, description:e.target.value})} placeholder="Ex: Guarda-chuva preto" /><Input themeKey={themeKey} label="Local / Veículo" value={formData.location||''} onChange={(e:any)=>setFormData({...formData, location:e.target.value})} placeholder="Ex: Van do João" /><Input themeKey={themeKey} label="Detalhes Adicionais" value={formData.details||''} onChange={(e:any)=>setFormData({...formData, details:e.target.value})} placeholder="Ex: Banco de trás, lado esquerdo" /><div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Status</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>{['Pendente','Entregue'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}</select></div><div className="pt-4"><Button themeKey={themeKey} onClick={()=>save('lostFound')}>Salvar</Button></div></>)}
+                    {modal === 'lostFound' && (
+                        <>
+                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs flex items-center gap-2 mb-2">
+                                <Icons.Van size={14} className="text-blue-400"/>
+                                <span>Cadastrando no sistema: <span className="font-bold text-blue-300">{systemContext}</span></span>
+                            </div>
+                            <Input themeKey={themeKey} label="O que foi encontrado?" value={formData.description||''} onChange={(e:any)=>setFormData({...formData, description:e.target.value})} placeholder="Ex: Guarda-chuva preto" />
+                            <Input themeKey={themeKey} label="Local / Veículo" value={formData.location||''} onChange={(e:any)=>setFormData({...formData, location:e.target.value})} placeholder="Ex: Van do João" />
+                            <Input themeKey={themeKey} label="Detalhes Adicionais" value={formData.details||''} onChange={(e:any)=>setFormData({...formData, details:e.target.value})} placeholder="Ex: Banco de trás, lado esquerdo" />
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-bold opacity-60 ml-1">Status</label>
+                                <select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>
+                                    {['Pendente','Entregue'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}
+                                </select>
+                            </div>
+                            <div className="pt-4">
+                                <Button themeKey={themeKey} onClick={()=>save('lostFound')}>Salvar</Button>
+                            </div>
+                        </>
+                    )}
                     
                     {modal === 'madrugadaVaga' && (<div className="space-y-6"><div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm text-yellow-200">Digite o número da vaga do motorista para adicionar à tabela da Madrugada.</div><Input theme={theme} label="Número da Vaga" value={tempVagaMadrugada} onChange={(e:any) => setTempVagaMadrugada(e.target.value)} placeholder="Ex: 05" autoFocus /><div className="pt-4"><Button theme={theme} onClick={confirmAddMadrugadaVaga} icon={Icons.Check}>Confirmar Adição</Button></div></div>)}
                     

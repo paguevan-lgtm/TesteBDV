@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { db, auth } from './firebase';
 import { THEMES, INITIAL_SP_LIST, BAIRROS, BAIRROS_MIP, DEFAULT_FOLGAS } from './constants';
-import { Icons, Toast, ConfirmModal, AlertModal, CommandPalette, QuickCalculator } from './components/Shared';
+import { Icons, Toast, ConfirmModal, AlertModal, AdminAuthModal, CommandPalette, QuickCalculator } from './components/Shared';
 import { TourGuide } from './components/Tour';
 import { LoginScreen } from './pages/Login';
 import { getTodayDate, getOperationalDate, getLousaDate, generateUniqueId, callGemini, getAvatarUrl, getBairroIdx, formatDisplayDate, parseDisplayDate, dateAddDays, addMinutes, getWeekNumber } from './utils';
@@ -48,6 +48,7 @@ const AppContent = () => {
     const [tempName, setTempName] = useState('');
     const [tempVaga, setTempVaga] = useState('');
     const [tableTab, setTableTab] = useState('geral'); 
+    const [mipDayType, setMipDayType] = useState(() => new Date().getDate() % 2 !== 0 ? 'odd' : 'even');
     
     const [currentOpDate, setCurrentOpDate] = useState(getOperationalDate());
     const [lousaDate, setLousaDate] = useState(getLousaDate());
@@ -106,10 +107,13 @@ const AppContent = () => {
     
     const [deletionCount, setDeletionCount] = useState(0);
     const [deletedItemsBuffer, setDeletedItemsBuffer] = useState<any[]>([]);
+    const [isAdminAuthorized, setIsAdminAuthorized] = useState(false);
+    const [adminAuthModal, setAdminAuthModal] = useState({ isOpen: false });
     
     useEffect(() => {
         setDeletionCount(0);
         setDeletedItemsBuffer([]);
+        setIsAdminAuthorized(false);
     }, [user?.username]);
 
     const theme = useMemo(() => THEMES[themeKey] || THEMES.default, [themeKey]);
@@ -625,7 +629,7 @@ const AppContent = () => {
             const parts = targetId.split('_');
             if (['Pg', 'Mip', 'Sv'].includes(parts[0])) {
                 targetSystem = parts[0];
-                targetId = parts[1];
+                targetId = targetId.substring(parts[0].length + 1);
                 // Atualizamos o payload com o ID real para salvar corretamente no Firebase
                 if (typeof payload === 'object') {
                     payload = { ...payload, id: targetId };
@@ -640,12 +644,13 @@ const AppContent = () => {
         const getPath = (system: string, nodeName: string) => {
             const tableSystemContext = (user.username === 'Breno' && system === 'Mistura') ? 'Pg' : system;
 
-            if (['passengers', 'drivers', 'trips'].includes(nodeName)) {
+            if (['passengers', 'drivers', 'trips', 'lostFound'].includes(nodeName)) {
                 return system === 'Pg' ? nodeName : `${system}/${nodeName}`;
             }
             if (nodeName === 'drivers_table_list' || nodeName === 'table_status' || nodeName === 'madrugada_config/list' || nodeName.startsWith('daily_tables') || nodeName.startsWith('system_settings')) {
                 if (tableSystemContext === 'Mip' && nodeName === 'drivers_table_list') {
-                    return tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6';
+                    const timeSuffix = tableTab === 'mip18' ? '18' : '6';
+                    return `Mip/drivers_${timeSuffix}_${mipDayType}`;
                 }
                 return tableSystemContext === 'Pg' ? nodeName : `${tableSystemContext}/${nodeName}`;
             }
@@ -697,7 +702,9 @@ const AppContent = () => {
             } else if (type === 'delete') {
                 // Lógica de segurança para Operador: limite de 3 exclusões seguidas de passageiros/motoristas
                 if (user?.role === 'operador' && (node === 'passengers' || node === 'drivers')) {
-                    if (deletionCount >= 3) {
+                    if (isAdminAuthorized) {
+                        // Se já está autorizado por um admin, permite a exclusão sem incrementar o contador de risco
+                    } else if (deletionCount >= 3) {
                         setAlertState({
                             isOpen: true,
                             title: "Segurança do Sistema",
@@ -714,17 +721,23 @@ const AppContent = () => {
                         // Resetar buffer e contador
                         setDeletedItemsBuffer([]);
                         setDeletionCount(0);
+                        
+                        // Solicitar autorização de admin
+                        setAdminAuthModal({ isOpen: true });
+                        
                         return; // Interrompe a 4ª exclusão
                     }
                     
-                    // Salvar item no buffer antes de excluir para possível recuperação
-                    const currentPath = getPath(targetSystem, node);
-                    const snapshot = await db.ref(currentPath).child(payload).once('value');
-                    const itemData = snapshot.val();
-                    
-                    if (itemData) {
-                        setDeletedItemsBuffer(prev => [...prev, { system: targetSystem, node, id: payload, data: itemData }]);
-                        setDeletionCount(prev => prev + 1);
+                    if (!isAdminAuthorized) {
+                        // Salvar item no buffer antes de excluir para possível recuperação
+                        const currentPath = getPath(targetSystem, node);
+                        const snapshot = await db.ref(currentPath).child(payload).once('value');
+                        const itemData = snapshot.val();
+                        
+                        if (itemData) {
+                            setDeletedItemsBuffer(prev => [...prev, { system: targetSystem, node, id: payload, data: itemData }]);
+                            setDeletionCount(prev => prev + 1);
+                        }
                     }
                 }
 
@@ -734,7 +747,7 @@ const AppContent = () => {
                     const parts = idToDelete.split('_');
                     if (['Pg', 'Mip', 'Sv'].includes(parts[0])) {
                         const deleteSystem = parts[0];
-                        const deleteId = parts[1];
+                        const deleteId = idToDelete.substring(parts[0].length + 1);
                         const deletePath = getPath(deleteSystem, node);
                         await db.ref(deletePath).child(deleteId).remove();
                     }
@@ -962,7 +975,8 @@ const AppContent = () => {
 
         let driversNode = tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`;
         if (tableSystemContext === 'Mip') {
-            driversNode = tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6';
+            const timeSuffix = tableTab === 'mip18' ? '18' : '6';
+            driversNode = `Mip/drivers_${timeSuffix}_${mipDayType}`;
         }
 
         const driversRef = db.ref(driversNode);
@@ -1122,7 +1136,7 @@ const AppContent = () => {
             duePranchetaRef.off('value', duePranchetaCb);
             viewedPranchetaRef.off('value', viewedPranchetaCb);
         }
-    }, [db, user, isFireConnected, currentOpDate, lousaDate, systemContext, tableTab, tableWeekId, currentWeekId, dueWeekId, viewedWeekId]);
+    }, [db, user, isFireConnected, currentOpDate, lousaDate, systemContext, tableTab, mipDayType, tableWeekId, currentWeekId, dueWeekId, viewedWeekId]);
 
     useEffect(() => {
         if (!db || !user) return;
@@ -1256,8 +1270,10 @@ const AppContent = () => {
                     }
                 };
 
-                await clearTable('Mip/drivers_6');
-                await clearTable('Mip/drivers_18');
+                await clearTable('Mip/drivers_6_odd');
+                await clearTable('Mip/drivers_6_even');
+                await clearTable('Mip/drivers_18_odd');
+                await clearTable('Mip/drivers_18_even');
                 console.log(`Mip tables cleared for new operational date: ${realOpDate}`);
             } else if (!lastCleared) {
                 await lastClearedRef.set(realOpDate);
@@ -1367,11 +1383,11 @@ const AppContent = () => {
             const now = new Date();
             const { confirmedTimes, startLousaTime } = getTableTimes();
             
-            const activeSlotsMap = new Map();
+            const activeSlots: any[] = [];
 
             getRotatedList(currentOpDate).forEach((driver:any) => {
                 if (tableStatus[driver.vaga] === 'confirmed') {
-                    activeSlotsMap.set(driver.vaga, { 
+                    activeSlots.push({ 
                         vaga: driver.vaga, 
                         time: confirmedTimes[driver.vaga] 
                     });
@@ -1386,7 +1402,7 @@ const AppContent = () => {
                 if (!item.riscado && !item.isNull) {
                     const t = new Date(startLousaTime.getTime() + lousaIndex * 30 * 60000);
                     const timeStr = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit', hour12: false});
-                    activeSlotsMap.set(item.vaga, { 
+                    activeSlots.push({ 
                         vaga: item.vaga, 
                         time: timeStr 
                     });
@@ -1400,8 +1416,6 @@ const AppContent = () => {
                     lousaIndex++;
                 }
             });
-
-            const activeSlots = Array.from(activeSlotsMap.values());
 
             // CALCULA O PRÓXIMO ID SEQUENCIAL (INTEIRO) - LOWEST AVAILABLE
             // Use realId if available (Mistura mode) to get the clean numeric ID
@@ -1485,6 +1499,12 @@ const AppContent = () => {
             });
 
             // 2. CLEANUP: REMOVE EXPIRED, INVALID OR REDUNDANT TEMP TRIPS
+            const timeToMinutes = (t: string) => {
+                if (!t) return -1;
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+            };
+
             data.trips.forEach((t:any) => {
                 if (t.isTemp && t.status !== 'Finalizada') {
                     
@@ -1502,7 +1522,14 @@ const AppContent = () => {
                         return;
                     }
 
-                    const activeSlot = activeSlots.find((s:any) => s.vaga === t.vaga);
+                    // Find the best matching active slot for this trip (closest time)
+                    const activeSlot = activeSlots
+                        .filter((s:any) => s.vaga === t.vaga)
+                        .sort((a, b) => {
+                            const diffA = Math.abs(timeToMinutes(addMinutes(a.time, 60)) - timeToMinutes(t.time));
+                            const diffB = Math.abs(timeToMinutes(addMinutes(b.time, 60)) - timeToMinutes(t.time));
+                            return diffA - diffB;
+                        })[0];
 
                     if (!activeSlot) {
                         // Only remove if it's strictly the same operational date context
@@ -1636,7 +1663,8 @@ const AppContent = () => {
         
         let driversNode = tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`;
         if (tableSystemContext === 'Mip') {
-            driversNode = tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6';
+            const timeSuffix = tableTab === 'mip18' ? '18' : '6';
+            driversNode = `Mip/drivers_${timeSuffix}_${mipDayType}`;
         }
 
         db.ref(driversNode).set(newList); 
@@ -1656,15 +1684,15 @@ const AppContent = () => {
             
             // Se a vaga mudou, remover as viagens antigas
             if (oldVaga !== tempVaga) {
-                db.ref(tripsPath).child(`temp_${currentOpDate}_${oldVaga}_1`).remove();
-                db.ref(tripsPath).child(`temp_${currentOpDate}_${oldVaga}_2`).remove();
+                db.ref(tripsPath).child(`temp_${currentOpDate}_${mipDayType}_${oldVaga}_1`).remove();
+                db.ref(tripsPath).child(`temp_${currentOpDate}_${mipDayType}_${oldVaga}_2`).remove();
             }
 
             // Criar/Atualizar as novas viagens com o novo nome e vaga
             const driver = newList.find((d:any) => d.vaga === tempVaga);
             if (driver) {
                 const updateTempTrip = (suffix: string, time: string, num: string, driverName: string) => {
-                    const tripId = `temp_${currentOpDate}_${tempVaga}_${suffix}`;
+                    const tripId = `temp_${currentOpDate}_${mipDayType}_${tempVaga}_${suffix}`;
                     const hasData = (time && time.trim()) || (num && num.trim());
                     
                     if (hasData) {
@@ -1675,7 +1703,8 @@ const AppContent = () => {
                                     db.ref(tripsPath).child(tripId).update({
                                         driverName: driverName,
                                         vaga: tempVaga,
-                                        tripNumber: num || ''
+                                        tripNumber: num || '',
+                                        dayType: mipDayType
                                     });
                                 }
                             } else {
@@ -1705,7 +1734,10 @@ const AppContent = () => {
                                         paymentStatus: 'Pendente',
                                         tripNumber: num || '',
                                         observation: 'Viagem Temporária',
-                                        pricePerPassenger: pricePerPassenger
+                                        pricePerPassenger: pricePerPassenger,
+                                        dayType: mipDayType,
+                                        system: 'Mip',
+                                        tripSuffix: suffix
                                     });
                                 }
                             }
@@ -1727,7 +1759,8 @@ const AppContent = () => {
     const updateMipDriver = (id: string, payload: any) => {
         const newList = spList.map((d:any) => d.id === id ? { ...d, ...payload } : d);
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
-        let node = tableSystemContext === 'Mip' ? (tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6') : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
+        const timeSuffix = tableTab === 'mip18' ? '18' : '6';
+        let node = tableSystemContext === 'Mip' ? `Mip/drivers_${timeSuffix}_${mipDayType}` : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
         db.ref(node).set(newList);
 
         // --- Lógica de Viagem Temporária (Apenas para MIP) ---
@@ -1756,7 +1789,8 @@ const AppContent = () => {
                         t.isTemp && 
                         t.date === currentOpDate && 
                         t.vaga === vaga && 
-                        t.tripSuffix === suffix
+                        t.tripSuffix === suffix &&
+                        t.dayType === mipDayType
                     );
 
                     const hasData = (time && time.trim()) || (num && num.trim());
@@ -1767,7 +1801,8 @@ const AppContent = () => {
                                 db.ref(tripsPath).child(existingTrip.id).update({
                                     time: time || '',
                                     tripNumber: num || '',
-                                    driverName: driverName
+                                    driverName: driverName,
+                                    dayType: mipDayType
                                 });
                             }
                         } else {
@@ -1799,6 +1834,8 @@ const AppContent = () => {
                                     observation: 'Viagem Temporária',
                                     pricePerPassenger: pricePerPassenger || 4,
                                     tripSuffix: suffix,
+                                    dayType: mipDayType,
+                                    system: 'Mip',
                                     passengerIds: []
                                 };
 
@@ -1887,12 +1924,12 @@ const AppContent = () => {
         const vaga = driver.vaga;
 
         // Determine source and target nodes
-        let sourceNode = tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6';
+        let sourceNode = tableTab === 'mip18' ? `Mip/drivers_18_${mipDayType}` : `Mip/drivers_6_${mipDayType}`;
         let targetNode = sourceNode; // Default to same table
 
         // SPECIAL RULE: If downloading from 6:00, copy goes to 18:00
         if (tableTab === 'mip6') {
-            targetNode = 'Mip/drivers_18';
+            targetNode = `Mip/drivers_18_${mipDayType}`;
         }
 
         // Se já baixou, CANCELAR (remover a cópia e desmarcar original)
@@ -1961,19 +1998,36 @@ const AppContent = () => {
         
         triggerUndo(() => {
             const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
-            let node = tableSystemContext === 'Mip' ? (tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6') : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
+            const timeSuffix = tableTab === 'mip18' ? '18' : '6';
+            let node = tableSystemContext === 'Mip' ? `Mip/drivers_${timeSuffix}_${mipDayType}` : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
             db.ref(node).set(oldList);
         }, `Vaga ${driver?.vaga || ''} ${driver?.riscado ? 'desmarcada' : 'riscada'}`);
 
         const newList = spList.map((d:any) => d.id === id ? { ...d, riscado: !d.riscado } : d);
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
-        let node = tableSystemContext === 'Mip' ? (tableTab === 'mip18' ? 'Mip/drivers_18' : 'Mip/drivers_6') : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
+        const timeSuffix = tableTab === 'mip18' ? '18' : '6';
+        let node = tableSystemContext === 'Mip' ? `Mip/drivers_${timeSuffix}_${mipDayType}` : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
         db.ref(node).set(newList);
     };
     
-    const addCannedMessage = () => { const newMsg = { id: generateUniqueId(), title: 'Nova Mensagem', text: '' }; const newList = [...cannedMessages, newMsg]; db.ref('canned_messages_config/list').set(newList); };
-    const updateCannedMessage = (id:string, field:string, value:any) => { const newList = cannedMessages.map((m:any) => m.id === id ? { ...m, [field]: value } : m); db.ref('canned_messages_config/list').set(newList); };
-    const deleteCannedMessage = (id:string) => { requestConfirm('Excluir mensagem?', 'Esta mensagem será removida da lista.', () => { const newList = cannedMessages.filter((m:any) => m.id !== id); db.ref('canned_messages_config/list').set(newList); }); };
+    const addCannedMessage = () => { 
+        const newMsg = { id: generateUniqueId(), title: 'Nova Mensagem', text: '' }; 
+        const newList = [...cannedMessages, newMsg]; 
+        const path = systemContext === 'Pg' ? 'canned_messages_config/list' : `${systemContext}/canned_messages_config/list`;
+        db.ref(path).set(newList); 
+    };
+    const updateCannedMessage = (id:string, field:string, value:any) => { 
+        const newList = cannedMessages.map((m:any) => m.id === id ? { ...m, [field]: value } : m); 
+        const path = systemContext === 'Pg' ? 'canned_messages_config/list' : `${systemContext}/canned_messages_config/list`;
+        db.ref(path).set(newList); 
+    };
+    const deleteCannedMessage = (id:string) => { 
+        requestConfirm('Excluir mensagem?', 'Esta mensagem será removida da lista.', () => { 
+            const newList = cannedMessages.filter((m:any) => m.id !== id); 
+            const path = systemContext === 'Pg' ? 'canned_messages_config/list' : `${systemContext}/canned_messages_config/list`;
+            db.ref(path).set(newList); 
+        }); 
+    };
 
     const saveExtraCharge = () => {
         if (!formData.value || !formData.date || !formData.driverName) return notify("Valor, Data e Nome do Motorista são obrigatórios.", "error");
@@ -2016,7 +2070,9 @@ const AppContent = () => {
             if (t.passengerIds && t.passengerIds.includes(pax.realId || pax.id)) return false;
 
             if (isMipContext && t.isTemp) {
-                // MIP Temp Trip Logic: 30 min window
+                // MIP Temp Trip Logic: 30 min window + Day Type check
+                if (t.dayType && t.dayType !== mipDayType) return false;
+                
                 const tripTimeMins = timeToMinutes(t.time);
                 const paxTimeMins = timeToMinutes(pax.time);
                 return paxTimeMins >= tripTimeMins && paxTimeMins <= (tripTimeMins + 30);
@@ -2848,6 +2904,18 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                     onClose={() => setAlertState((prev:any) => ({ ...prev, isOpen: false }))} 
                     theme={theme} 
                 />
+
+                <AdminAuthModal 
+                    isOpen={adminAuthModal.isOpen}
+                    onClose={() => setAdminAuthModal({ isOpen: false })}
+                    onAuth={() => {
+                        setIsAdminAuthorized(true);
+                        setAdminAuthModal({ isOpen: false });
+                        notify("Autorizado com sucesso! Agora você pode apagar múltiplos dados.", "success");
+                    }}
+                    theme={theme}
+                    users={data.users}
+                />
                  
                  {/* Premium Utilities */}
                  <CommandPalette isOpen={cmdOpen} onClose={() => setCmdOpen(false)} theme={theme} actions={commandActions} />
@@ -2958,6 +3026,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                 weekId={dueWeekId}
                                 uiTicker={uiTicker}
                                 theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
+                                mipDayType={mipDayType} setMipDayType={setMipDayType}
                                 currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
                                 analysisRotatedList={getRotatedList(analysisDate)} tableStatus={tableStatus} 
                                 editName={editName} tempName={tempName} tempVaga={tempVaga} setEditName={setEditName} setTempName={setTempName} setTempVaga={setTempVaga} saveDriverName={saveDriverName} 
@@ -3032,8 +3101,8 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                 systemContext={systemContext}
                                 pricePerPassenger={pricePerPassenger}
                             />}
-                            {view === 'achados' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
-                            {view === 'lostFound' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
+                            {view === 'achados' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} systemContext={systemContext} />}
+                            {view === 'lostFound' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} systemContext={systemContext} />}
                             {view === 'settings' && <Configuracoes 
                                 user={user} 
                                 theme={theme} 

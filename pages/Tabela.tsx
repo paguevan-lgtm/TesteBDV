@@ -50,7 +50,7 @@ const SortableRow = ({ id, children, disabled }: any) => {
 };
 
 // Tabela Component
-export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker, rotationBaseDate }: any) {
+export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType, setMipDayType, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker, rotationBaseDate }: any) {
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -228,7 +228,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                         </div>
                         <h3 className="text-xl font-bold text-center mb-2">Limpar Tabela?</h3>
                         <p className="text-center opacity-60 text-sm mb-6">
-                            Isso removerá todos os motoristas da tabela atual ({tableTab === 'mip6' ? '6:00' : '18:00'}). Esta ação não pode ser desfeita.
+                            Isso removerá todos os motoristas da tabela atual ({tableTab === 'mip6' ? '6:00' : '18:00'} - {mipDayType === 'odd' ? 'Dia Ímpar' : 'Dia Par'}). Esta ação não pode ser desfeita.
                         </p>
                         <div className="flex gap-3">
                             <button 
@@ -248,12 +248,18 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                 </div>
             )}
 
-            <div id="table-tabs" className="flex p-1 bg-black/20 rounded-xl border border-white/5 gap-1 overflow-x-auto">
+            <div id="table-tabs" className={`flex p-1 bg-black/20 rounded-xl border border-white/5 gap-1 ${systemContext === 'Mip' ? 'flex-col' : 'overflow-x-auto whitespace-nowrap'}`}>
                 {systemContext === 'Mip' ? (
-                    <>
-                        <button onClick={()=>setTableTab('mip6')} className={`flex-1 min-w-[120px] py-2 text-sm font-bold rounded-lg transition-all ${tableTab==='mip6' ? theme.primary : 'hover:bg-white/5 opacity-60'}`}>Tabela 6:00</button>
-                        <button onClick={()=>setTableTab('mip18')} className={`flex-1 min-w-[120px] py-2 text-sm font-bold rounded-lg transition-all ${tableTab==='mip18' ? theme.primary : 'hover:bg-white/5 opacity-60'}`}>Tabela 18:00</button>
-                    </>
+                    <div className="flex flex-col gap-1 w-full">
+                        <div className="flex gap-1">
+                            <button onClick={()=>setTableTab('mip6')} className={`flex-1 min-w-[120px] py-2 text-sm font-bold rounded-lg transition-all ${tableTab==='mip6' ? theme.primary : 'hover:bg-white/5 opacity-60'}`}>Tabela 6:00</button>
+                            <button onClick={()=>setTableTab('mip18')} className={`flex-1 min-w-[120px] py-2 text-sm font-bold rounded-lg transition-all ${tableTab==='mip18' ? theme.primary : 'hover:bg-white/5 opacity-60'}`}>Tabela 18:00</button>
+                        </div>
+                        <div className="flex gap-1">
+                            <button onClick={()=>setMipDayType('odd')} className={`flex-1 py-1.5 text-[10px] uppercase tracking-wider font-black rounded-lg transition-all ${mipDayType==='odd' ? 'bg-blue-600 text-white' : 'bg-white/5 opacity-40 hover:opacity-60'}`}>Dia Ímpar</button>
+                            <button onClick={()=>setMipDayType('even')} className={`flex-1 py-1.5 text-[10px] uppercase tracking-wider font-black rounded-lg transition-all ${mipDayType==='even' ? 'bg-blue-600 text-white' : 'bg-white/5 opacity-40 hover:opacity-60'}`}>Dia Par</button>
+                        </div>
+                    </div>
                 ) : (
                     <>
                         <button onClick={()=>setTableTab('geral')} className={`flex-1 min-w-[100px] py-2 text-sm font-bold rounded-lg transition-all ${tableTab==='geral' ? theme.primary : 'hover:bg-white/5 opacity-60'}`}>Tabela</button>
@@ -280,14 +286,14 @@ export default function Tabela({ data, theme, tableTab, setTableTab, currentOpDa
                             </button>
                         </div>
                         <h3 className="text-lg font-bold opacity-80">
-                            {tableTab === 'mip6' ? 'Tabela 6:00' : tableTab === 'mip18' ? 'Tabela 18:00' : 'Tabela Geral'}
+                            {tableTab === 'mip6' ? `Tabela 6:00 (${mipDayType === 'odd' ? 'Dia Ímpar' : 'Dia Par'})` : tableTab === 'mip18' ? `Tabela 18:00 (${mipDayType === 'odd' ? 'Dia Ímpar' : 'Dia Par'})` : 'Tabela Geral'}
                         </h3>
                         <div className="flex items-center gap-2 bg-black/30 p-1 rounded-lg">
                             <button onClick={() => setAnalysisDate(dateAddDays(analysisDate, -1))} className="p-2 hover:bg-white/10 rounded-md"><Icons.ChevronLeft size={20}/></button>
                             <div className="px-4 font-mono font-bold text-sm">{formatDisplayDate(analysisDate)}</div>
                             <button onClick={() => setAnalysisDate(dateAddDays(analysisDate, 1))} className="p-2 hover:bg-white/10 rounded-md"><Icons.ChevronRight size={20}/></button>
                             <button onClick={() => setAnalysisDate(currentOpDate)} className="ml-2 text-xs bg-white/10 px-2 py-1 rounded hover:bg-white/20">{currentOpDate === getTodayDate() ? 'Hoje' : 'Amanhã (Op)'}</button>
-                            <button onClick={() => onPrint('print-tabela-list', 'Tabela_Geral', 'TABELA GERAL', { forceCols: 2, date: analysisDate })} className="ml-4 p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors" title="Salvar como Imagem (2 Colunas)"><Icons.Print size={20}/></button>
+                            <button onClick={() => onPrint('print-tabela-list', 'Tabela_Geral', tableTab === 'mip6' ? 'TABELA 6:00' : tableTab === 'mip18' ? 'TABELA 18:00' : 'TABELA GERAL', { forceCols: 2, date: analysisDate })} className="ml-4 p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors" title="Salvar como Imagem (2 Colunas)"><Icons.Print size={20}/></button>
                         </div>
                     </div>
                     <div id="print-tabela-list" className="space-y-2">

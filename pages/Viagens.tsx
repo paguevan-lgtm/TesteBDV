@@ -201,6 +201,13 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
 
                     return (
                         <div key={`${t.id}_${i}`} style={{animationDelay: `${i * 100}ms`}} className={`${theme.card} ${theme.radius} border ${borderClass} p-5 relative overflow-hidden shadow-lg stagger-in`}>
+                            {t.dayType && (
+                                <div className="absolute top-0 left-0">
+                                    <div className={`${t.dayType === 'odd' ? 'bg-blue-600' : 'bg-purple-600'} text-white text-[10px] px-2 py-0.5 font-bold uppercase rounded-br-lg`}>
+                                        {t.dayType === 'odd' ? 'Dia Ímpar' : 'Dia Par'}
+                                    </div>
+                                </div>
+                            )}
                             {t.isMadrugada && <div className="absolute top-0 right-0"><div className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 font-bold uppercase rounded-bl-lg">Madrugada</div></div>}
                             {t.isTemp && !t.isMadrugada && (
                                 <div className="absolute top-0 right-0 flex">
