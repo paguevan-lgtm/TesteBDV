@@ -21,6 +21,15 @@
   background: var(--scrollbar-hover-color, #2563eb);
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Login Screen - New Immersive Scene */
 .login-scene {
   position: absolute;

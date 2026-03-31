@@ -6,7 +6,9 @@ import { motion } from 'motion/react';
 import {
     DndContext,
     closestCenter,
-    PointerSensor,
+    KeyboardSensor,
+    MouseSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     DragOverlay,
@@ -17,6 +19,7 @@ import {
     SortableContext,
     verticalListSortingStrategy,
     useSortable,
+    sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
@@ -35,7 +38,8 @@ const SortableMenuItem = ({ item, isMobile, view, setView, setMenuOpen, theme }:
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 50 : 1,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.3 : 1,
+        touchAction: 'none'
     };
 
     return (
@@ -83,17 +87,32 @@ export const Sidebar = ({
     systemContext
 }: any) => {
 
+    const [activeId, setActiveId] = React.useState<string | null>(null);
+    
     const sensors = useSensors(
-        useSensor(PointerSensor, {
+        useSensor(MouseSensor, {
+            activationConstraint: {
+                distance: 10,
+            },
+        }),
+        useSensor(TouchSensor, {
             activationConstraint: {
                 delay: 250,
                 tolerance: 5,
             },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
         })
     );
 
+    const handleDragStart = (event: any) => {
+        setActiveId(event.active.id);
+    };
+
     const handleDragEnd = (event: any) => {
         const { active, over } = event;
+        setActiveId(null);
         if (active.id !== over?.id) {
             const oldIndex = orderedMenuItems.findIndex((i: any) => i.id === active.id);
             const newIndex = orderedMenuItems.findIndex((i: any) => i.id === over.id);
@@ -123,6 +142,7 @@ export const Sidebar = ({
                 <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                     modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
                 >
@@ -142,6 +162,25 @@ export const Sidebar = ({
                             />
                         ))}
                     </SortableContext>
+                    <DragOverlay>
+                        {activeId ? (
+                            <div className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${theme.primary} shadow-2xl opacity-80 scale-105 pointer-events-none`}>
+                                {(() => {
+                                    const item = orderedMenuItems.find((i: any) => i.id === activeId);
+                                    if (!item) return null;
+                                    return (
+                                        <>
+                                            <item.i size={20}/>
+                                            <div className="flex-1 text-left">
+                                                <div className="text-sm font-bold">{item.l}</div>
+                                                <div className="text-[10px] opacity-50">{item.d}</div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        ) : null}
+                    </DragOverlay>
                 </DndContext>
             </div>
 

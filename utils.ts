@@ -196,8 +196,11 @@ export const callGemini = async (prompt: string, apiKey: string) => {
     // Fix: Using GoogleGenAI SDK instead of direct fetch
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-lite-preview',
         contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+        }
     });
     
     return response.text || "";

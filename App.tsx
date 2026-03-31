@@ -66,6 +66,8 @@ const AppContent = () => {
     const [swaps, setSwaps] = useState<any>({});
     const [ganchos, setGanchos] = useState<any>({});
     const [folgasDisabled, setFolgasDisabled] = useState(false);
+    const [saturdayFolgaDisabled, setSaturdayFolgaDisabled] = useState(false);
+    const [customDefaultFolgas, setCustomDefaultFolgas] = useState<any>(null);
     const [saturdayRotation, setSaturdayRotation] = useState<any>(null);
     
     const [uiTicker, setUiTicker] = useState(0);
@@ -158,17 +160,22 @@ const AppContent = () => {
     const [systemContext, setSystemContext] = useState('Pg');
 
     const getFolgasForDate = useCallback((targetDateStr: string) => {
-        if (folgasDisabled || systemContext !== 'Pg') return {};
+        const tableSystemContext = (user?.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
+        if (folgasDisabled || tableSystemContext !== 'Pg') return {};
         
-        // Deep clone to avoid mutating DEFAULT_FOLGAS
+        // Use customDefaultFolgas if available, otherwise fallback to DEFAULT_FOLGAS
+        const baseFolgas = customDefaultFolgas || DEFAULT_FOLGAS;
+        
+        // Deep clone to avoid mutating the source
         const result: any = {};
-        Object.keys(DEFAULT_FOLGAS).forEach(day => {
-            result[day] = [...(DEFAULT_FOLGAS as any)[day]];
+        Object.keys(baseFolgas).forEach(day => {
+            const dayFolgas = (baseFolgas as any)[day];
+            result[day] = Array.isArray(dayFolgas) ? [...dayFolgas] : [];
         });
 
         // Saturday Rotation Logic
         const SATURDAY_CYCLE = ['QUINTA', 'TERÇA', 'QUARTA'];
-        if (saturdayRotation) {
+        if (saturdayRotation && !saturdayFolgaDisabled) {
             const { baseDate, baseWeekday } = saturdayRotation;
             const base = new Date(baseDate + 'T12:00:00');
             const cycleStartIdx = SATURDAY_CYCLE.indexOf(baseWeekday);
@@ -188,23 +195,32 @@ const AppContent = () => {
                 
                 const currentSaturdayWeekday = SATURDAY_CYCLE[normalizedIdx];
                 if (currentSaturdayWeekday) {
-                    result['SÁBADO'] = [...(DEFAULT_FOLGAS as any)[currentSaturdayWeekday]];
+                    const weekdayFolgas = (baseFolgas as any)[currentSaturdayWeekday];
+                    result['SÁBADO'] = Array.isArray(weekdayFolgas) ? [...weekdayFolgas] : [];
                 }
             }
+        } else if (saturdayFolgaDisabled) {
+            // If Saturday folga is disabled, clear it
+            result['SÁBADO'] = [];
         }
 
         Object.entries(swaps).forEach(([vaga, newDay]: [string, any]) => {
-            ['TERÇA', 'QUARTA', 'QUINTA'].forEach(day => {
-                if (result[day]) {
+            if (!newDay) return;
+            
+            Object.keys(result).forEach(day => {
+                // Saturday is independent of swaps
+                if (result[day] && day !== 'SÁBADO') {
                     result[day] = result[day].filter((v: string) => v !== vaga);
                 }
             });
-            if (result[newDay]) {
+            
+            // Saturday is independent of swaps
+            if (newDay !== 'SÁBADO' && result[newDay]) {
                 result[newDay].push(vaga);
             }
         });
         return result;
-    }, [folgasDisabled, swaps, systemContext, saturdayRotation]);
+    }, [folgasDisabled, saturdayFolgaDisabled, swaps, systemContext, saturdayRotation, customDefaultFolgas]);
 
     const effectiveFolgas = useMemo(() => {
         return getFolgasForDate(currentOpDate);
@@ -1064,7 +1080,8 @@ const AppContent = () => {
             } 
         });
 
-        const swapsRef = db.ref(`folgas_swaps/${tableWeekId}`);
+        const swapsPath = tableSystemContext === 'Pg' ? `folgas_swaps/${tableWeekId}` : `${tableSystemContext}/folgas_swaps/${tableWeekId}`;
+        const swapsRef = db.ref(swapsPath);
         const swapsCb = swapsRef.on('value', (snap: any) => {
             setSwaps(snap.val() || {});
         });
@@ -1074,9 +1091,21 @@ const AppContent = () => {
             setGanchos(snap.val() || {});
         });
 
-        const folgasDisabledRef = db.ref('system_settings/folgas_disabled');
+        const folgasDisabledPath = tableSystemContext === 'Pg' ? 'system_settings/folgas_disabled' : `${tableSystemContext}/system_settings/folgas_disabled`;
+        const satFolgaDisabledPath = tableSystemContext === 'Pg' ? 'system_settings/saturday_folga_disabled' : `${tableSystemContext}/system_settings/saturday_folga_disabled`;
+        const customFolgasPath = tableSystemContext === 'Pg' ? 'system_settings/custom_default_folgas' : `${tableSystemContext}/system_settings/custom_default_folgas`;
+
+        const folgasDisabledRef = db.ref(folgasDisabledPath);
+        const saturdayFolgaDisabledRef = db.ref(satFolgaDisabledPath);
+        const customDefaultFolgasRef = db.ref(customFolgasPath);
         const folgasDisabledCb = folgasDisabledRef.on('value', (snap: any) => {
             setFolgasDisabled(!!snap.val());
+        });
+        const saturdayFolgaDisabledCb = saturdayFolgaDisabledRef.on('value', (snap: any) => {
+            setSaturdayFolgaDisabled(!!snap.val());
+        });
+        const customDefaultFolgasCb = customDefaultFolgasRef.on('value', (snap: any) => {
+            setCustomDefaultFolgas(snap.val());
         });
 
         const currentPranchetaRef = db.ref(tableSystemContext === 'Pg' ? `prancheta/${currentWeekId}` : `${tableSystemContext}/prancheta/${currentWeekId}`);
@@ -1131,6 +1160,8 @@ const AppContent = () => {
             swapsRef.off('value', swapsCb);
             ganchosRef.off('value', ganchosCb);
             folgasDisabledRef.off('value', folgasDisabledCb);
+            saturdayFolgaDisabledRef.off('value', saturdayFolgaDisabledCb);
+            customDefaultFolgasRef.off('value', customDefaultFolgasCb);
             satRotRef.off('value', satRotCb);
             currentPranchetaRef.off('value', currentPranchetaCb);
             duePranchetaRef.off('value', duePranchetaCb);
@@ -2155,14 +2186,13 @@ const AppContent = () => {
         setAiLoading(true);
         try {
             const bairros = (systemContext === 'Mip' ? BAIRROS_MIP : BAIRROS).join(',');
-            const prompt = `Analise este texto: "${aiInput}". Extraia um JSON ESTRITAMENTE VÁLIDO (sem markdown, sem crases) com: name, phone, neighborhood (escolha o mais próximo de: ${bairros}), address, reference, passengerCount (número, padrão 1), luggageCount (número de malas, padrão 0), payment (Escolha EXATAMENTE um: "Dinheiro", "Pix" ou "Cartão"), time (HH:mm). Se faltar info, use null. Exemplo de saída: {"name": "João", ...}`;
+            const prompt = `Extraia JSON de: "${aiInput}". Campos: name, phone, neighborhood (de: ${bairros}), address, reference, passengerCount (int, pad 1), luggageCount (int, pad 0), payment ("Dinheiro", "Pix", "Cartão"), time (HH:mm). Se faltar use null.`;
             
             const res = await callGemini(prompt, geminiKey);
             
             if (!res) throw new Error("A IA não retornou nada. Verifique sua chave API.");
 
-            const cleanJson = res.replace(/```json/g, '').replace(/```/g, '').trim();
-            const json = JSON.parse(cleanJson);
+            const json = JSON.parse(res.trim());
 
             const validPayments = ['Dinheiro', 'Pix', 'Cartão'];
             let finalPayment = 'Dinheiro';
@@ -3016,7 +3046,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             {view === 'drivers' && <Motoristas data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} />}
                             {view === 'trips' && <Viagens data={{...data, pricePerPassenger}} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} openEditTrip={openEditTrip} updateTripStatus={updateTripStatus} del={del} duplicateTrip={duplicateTrip} notify={notify} systemContext={systemContext} pranchetaValue={pranchetaValue} />}
                             {view === 'appointments' && <Agendamentos data={data} theme={theme} setFormData={setFormData} setModal={setModal} dbOp={dbOp} setSuggestedTrip={setSuggestedTrip} setEditingTripId={setEditingTripId} notify={notify} requestConfirm={requestConfirm} systemContext={systemContext} />}
-                            {view === 'folgasGanchos' && <FolgasGanchos data={data} theme={theme} dbOp={dbOp} notify={notify} effectiveFolgas={effectiveFolgas} swaps={swaps} ganchos={ganchos} systemContext={systemContext} user={user} folgasDisabled={folgasDisabled} saturdayRotation={saturdayRotation} />}
+                            {view === 'folgasGanchos' && <FolgasGanchos data={data} theme={theme} dbOp={dbOp} notify={notify} effectiveFolgas={effectiveFolgas} swaps={swaps} ganchos={ganchos} systemContext={systemContext} user={user} folgasDisabled={folgasDisabled} saturdayFolgaDisabled={saturdayFolgaDisabled} customDefaultFolgas={customDefaultFolgas} saturdayRotation={saturdayRotation} tableWeekId={tableWeekId} />}
 
                             
                             {/* Tabela Recebe Função para Calcular Listas Futuras */}

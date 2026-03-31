@@ -163,64 +163,63 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                     <div key={trip.id} className={`${theme.card} p-4 rounded-xl border ${theme.border} flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-hidden`}>
                                         {/* Indicador Lateral de Status */}
                                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${trip.isPaid ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                        
-                                        <div className="flex items-center gap-4 w-full md:w-auto">
+                                                                     <div className="flex items-center gap-4 w-full md:w-auto min-w-0">
                                             <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold bg-white/5 border border-white/10 shrink-0 ${(!trip.isExtra && !trip.isMadrugada && trip.time && trip.time.length > 3) ? 'text-xs' : 'text-lg'}`}>
                                                 {trip.isExtra ? <Icons.Car size={24}/> : (trip.isMadrugada ? <Icons.Moon size={24}/> : (
-                                                    trip.time && trip.time.toLowerCase().includes('madrugada') ? 'Mad.' : (trip.time && trip.time.includes(':') ? trip.time.split(':')[0] + 'h' : trip.time)
-                                                ))}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                {trip.isExtra ? (
-                                                    <>
-                                                        <div className="font-bold text-lg flex items-center gap-2 flex-wrap min-w-0">
-                                                            <span className="truncate">{trip.driverName}</span>
-                                                            <div className="flex gap-1">
-                                                                <span className="text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase shrink-0">Extra</span>
-                                                                <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30 uppercase shrink-0">{trip.extraType || 'Frete'}</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-sm opacity-60 flex items-center gap-2">
-                                                            <Icons.Calendar size={12} className="opacity-50"/>
-                                                            <span>{formatDisplayDate(trip.date)} às {trip.time}</span>
-                                                        </div>
-                                                        <div className="text-sm opacity-60 italic max-w-[200px] truncate mt-1">
-                                                            {trip.notes || 'Sem observação'}
-                                                        </div>
-                                                    </>
-                                                ) : trip.isMadrugada ? (
-                                                    <>
-                                                            <div className="font-bold text-lg flex items-center gap-2 min-w-0">
-                                                            <span className="truncate">{trip.driverName}</span>
-                                                            <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase shrink-0">Madrugada</span>
-                                                        </div>
-                                                        <div className="text-sm opacity-60 flex items-center gap-2">
-                                                            <span>{trip.pCount} passageiros</span>
-                                                            <span>•</span>
-                                                            <span>Vaga {trip.vaga}</span>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <div className="font-bold text-lg flex items-center gap-2 min-w-0">
-                                                            <span className="truncate">{trip.driverName}</span>
-                                                            {trip.isTemp && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30 uppercase shrink-0">Temp</span>}
-                                                        </div>
-                                                        <div className="text-sm opacity-60 flex items-center gap-2">
-                                                            <span>{trip.pCount} passageiros</span>
-                                                            <span>•</span>
-                                                            <span className="font-mono">#{trip.id}</span>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {/* Mostra quem recebeu o pagamento se estiver pago */}
-                                                {trip.isPaid && trip.receivedBy && (
-                                                    <div className="text-[10px] text-green-500/70 font-medium mt-1 flex items-center gap-1">
-                                                        <Icons.CheckCircle size={10}/> Recebido por {trip.receivedBy}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                                     trip.time && trip.time.toLowerCase().includes('madrugada') ? 'Mad.' : (trip.time && trip.time.includes(':') ? trip.time.split(':')[0] + 'h' : trip.time)
+                                                 ))}
+                                             </div>
+                                             <div className="min-w-0 flex-1">
+                                                 {trip.isExtra ? (
+                                                     <>
+                                                         <div className="font-bold text-lg flex items-center gap-2 flex-wrap min-w-0">
+                                                             <span className="truncate">{trip.driverName}</span>
+                                                             <div className="flex gap-1 shrink-0">
+                                                                 <span className="text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase shrink-0">Extra</span>
+                                                                 <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30 uppercase shrink-0">{trip.extraType || 'Frete'}</span>
+                                                             </div>
+                                                         </div>
+                                                         <div className="text-sm opacity-60 flex items-center gap-2">
+                                                             <Icons.Calendar size={12} className="opacity-50 shrink-0"/>
+                                                             <span className="truncate">{formatDisplayDate(trip.date)} às {trip.time}</span>
+                                                         </div>
+                                                         <div className="text-sm opacity-60 italic max-w-[200px] truncate mt-1">
+                                                             {trip.notes || 'Sem observação'}
+                                                         </div>
+                                                     </>
+                                                 ) : trip.isMadrugada ? (
+                                                     <>
+                                                             <div className="font-bold text-lg flex items-center gap-2 min-w-0">
+                                                             <span className="truncate">{trip.driverName}</span>
+                                                             <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase shrink-0">Madrugada</span>
+                                                         </div>
+                                                         <div className="text-sm opacity-60 flex items-center gap-2">
+                                                             <span className="truncate">{trip.pCount} passageiros</span>
+                                                             <span className="shrink-0">•</span>
+                                                             <span className="shrink-0">Vaga {trip.vaga}</span>
+                                                         </div>
+                                                     </>
+                                                 ) : (
+                                                     <>
+                                                         <div className="font-bold text-lg flex items-center gap-2 min-w-0">
+                                                             <span className="truncate">{trip.driverName}</span>
+                                                             {trip.isTemp && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30 uppercase shrink-0">Temp</span>}
+                                                         </div>
+                                                         <div className="text-sm opacity-60 flex items-center gap-2">
+                                                             <span className="truncate">{trip.pCount} passageiros</span>
+                                                             <span className="shrink-0">•</span>
+                                                             <span className="font-mono shrink-0">#{trip.id}</span>
+                                                         </div>
+                                                     </>
+                                                 )}
+                                                 {/* Mostra quem recebeu o pagamento se estiver pago */}
+                                                 {trip.isPaid && trip.receivedBy && (
+                                                     <div className="text-[10px] text-green-500/70 font-medium mt-1 flex items-center gap-1">
+                                                         <Icons.CheckCircle size={10} className="shrink-0"/> <span className="truncate">Recebido por {trip.receivedBy}</span>
+                                                     </div>
+                                                 )}
+                                             </div>
+                                         </div>
 
                                         <div className="flex flex-wrap items-center justify-between w-full md:w-auto gap-3 md:gap-6 bg-black/20 p-3 md:p-0 md:bg-transparent rounded-lg">
                                             <div className="flex flex-col items-start md:items-end px-1 md:px-0">

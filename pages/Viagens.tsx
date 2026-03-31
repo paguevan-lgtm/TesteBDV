@@ -222,12 +222,12 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
                                     </div>
                                 </div>
                             )}
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="font-bold text-lg">Viagem #{t.id.replace('mad_','')}</h3>
+                            <div className="flex justify-between items-start mb-4 gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="font-bold text-lg truncate">Viagem #{t.id.replace('mad_','')}</h3>
                                     <div className={`${theme.accent} font-bold text-sm mt-1`}>{calculateTimeSlot(t.time, systemContext === 'Mip' ? 30 : 45)}</div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-shrink-0">
                                     <IconButton theme={theme} onClick={()=>openEditTrip(t)} icon={Icons.Edit} variant="default" />
                                     <IconButton theme={theme} onClick={()=>del('trips', t.id)} icon={Icons.Trash} variant="danger" />
                                 </div>
@@ -297,12 +297,12 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
                                                 }
 
                                                 return (
-                                                    <div key={`${t.id}_${i}`} className="bg-white/5 p-3 rounded-lg flex justify-between items-center hover:bg-white/10 transition-colors border border-transparent hover:border-white/10">
-                                                        <div className="flex items-center gap-3">
-                                                                <div className={`w-1 h-8 rounded-full ${t.status === 'Finalizada' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                                                <div>
-                                                                <div className="font-bold text-sm">{formatTime(t.time)} - {t.driverName}</div>
-                                                                <div className="text-xs opacity-50 flex gap-2">
+                                                    <div key={`${t.id}_${i}`} className="bg-white/5 p-3 rounded-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-3 hover:bg-white/10 transition-colors border border-transparent hover:border-white/10">
+                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                                <div className={`w-1 h-8 rounded-full flex-shrink-0 ${t.status === 'Finalizada' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                                                <div className="min-w-0">
+                                                                <div className="font-bold text-sm truncate">{formatTime(t.time)} - {t.driverName}</div>
+                                                                <div className="text-xs opacity-50 flex flex-wrap gap-x-2 gap-y-0.5">
                                                                     <span>#{t.id}</span>
                                                                     <span>•</span>
                                                                     <span>{t.status}</span>
@@ -313,7 +313,7 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
                                                                 </div>
                                                                 </div>
                                                         </div>
-                                                        <div className="flex gap-2">
+                                                        <div className="flex gap-2 flex-shrink-0 ml-auto sm:ml-0">
                                                             <button onClick={()=>updateTripStatus(t.id, 'Em andamento')} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20" title="Reabrir"><Icons.Back size={16}/></button>
                                                             <button onClick={()=>openEditTrip(t)} className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20" title="Ver/Editar"><Icons.Edit size={16}/></button>
                                                             <button onClick={()=>del('trips', t.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20" title="Excluir Permanentemente"><Icons.Trash size={16}/></button>
