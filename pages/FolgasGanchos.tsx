@@ -413,7 +413,7 @@ export default function FolgasGanchos({ data, theme, dbOp, notify, swaps, gancho
         <div className="space-y-6">
             <PageHeader title="Folgas e Ganchos" subtitle={isPgSystem ? "Gerenciamento de folgas e ganchos" : "Gerenciamento de ganchos"} />
             
-            <div className="overflow-x-auto pb-2 scrollbar-hide">
+            <div className="overflow-x-auto pb-2">
                 <div className="flex gap-2 p-1 bg-black/10 rounded-xl w-fit min-w-max">
                     {isPgSystem && (
                         <>
