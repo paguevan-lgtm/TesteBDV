@@ -92,8 +92,8 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
             return;
         }
 
-        // Obriga a localização
-        executeGeoLogin();
+        // Apenas abre o modal, o usuário deve clicar para confirmar e disparar o prompt do Safari
+        setShowGeoPrompt(true);
     };
 
     const executeGeoLogin = () => {
@@ -126,7 +126,7 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
                         setShowGeoPrompt(true);
                     }
                 },
-                { enableHighAccuracy: highAccuracy, timeout: 10000, maximumAge: 0 }
+                { enableHighAccuracy: highAccuracy, timeout: 20000, maximumAge: 0 }
             );
         };
 
