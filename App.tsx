@@ -635,6 +635,25 @@ const AppContent = () => {
         return getNextId('trips');
     };
 
+    const logAction = useCallback(async (action: string, details: string) => {
+        if (!user || user.username === 'Breno' || !db) return;
+        
+        const logEntry = {
+            username: user.username,
+            sessionId: user.sessionId || '',
+            action,
+            details,
+            timestamp: Date.now(),
+            date: getTodayDate()
+        };
+        
+        try {
+            await db.ref('audit_logs').push(logEntry);
+        } catch (e) {
+            console.error("Error logging action:", e);
+        }
+    }, [user]);
+
     const dbOp = async (type: string, node: string, payload: any) => {
         if(!db) return notify("Sem conexão DB.", "error");
 
@@ -684,6 +703,12 @@ const AppContent = () => {
             if (['passengers', 'drivers', 'trips', 'lostFound'].includes(nodeName)) {
                 return system === 'Pg' ? nodeName : `${system}/${nodeName}`;
             }
+            if (nodeName === 'lousa_order') {
+                return tableSystemContext === 'Pg' ? `daily_tables/${lousaDate}/lousaOrder` : `${tableSystemContext}/daily_tables/${lousaDate}/lousaOrder`;
+            }
+            if (nodeName === 'madrugada_order') {
+                return tableSystemContext === 'Pg' ? 'madrugada_config/list' : `${tableSystemContext}/madrugada_config/list`;
+            }
             if (nodeName === 'drivers_table_list' || nodeName === 'table_status' || nodeName === 'madrugada_config/list' || nodeName.startsWith('daily_tables') || nodeName.startsWith('system_settings')) {
                 if (tableSystemContext === 'Mip' && nodeName === 'drivers_table_list') {
                     const timeSuffix = tableTab === 'mip18' ? '18' : '6';
@@ -719,6 +744,15 @@ const AppContent = () => {
                 }
 
                 await ref.child(finalId).set(finalPayload);
+                
+                // Logging
+                if (node === 'passengers') logAction('Criou Passageiro', `Nome: ${finalPayload.name}`);
+                else if (node === 'drivers') logAction('Criou Motorista', `Nome: ${finalPayload.name}`);
+                else if (node === 'trips') logAction('Criou Viagem', `Motorista: ${finalPayload.driverName} - ${finalPayload.time}`);
+                else if (node === 'lostFound') logAction('Criou Achados e Perdidos', `Item: ${finalPayload.item}`);
+                else if (node === 'users') logAction('Criou Usuário', `Username: ${finalPayload.username}`);
+                else if (node === 'notes') logAction('Criou Nota', `Texto: ${finalPayload.text?.substring(0, 30)}...`);
+
                 if (node !== 'notes') notify("Salvo com sucesso!", "success");
             } else if (type === 'update') {
                 if (user?.role === 'operador') {
@@ -729,12 +763,37 @@ const AppContent = () => {
                     await ref.child(targetId).update(payload);
                 } else {
                     // Para listas completas (como drivers_table_list), usamos set para evitar merge de índices
-                    if (node === 'drivers_table_list' || node === 'madrugada_config/list' || node === 'canned_messages_config/list') {
+                    if (node === 'drivers_table_list' || node === 'madrugada_config/list' || node === 'canned_messages_config/list' || node === 'lousa_order' || node === 'madrugada_order') {
                         await ref.set(payload);
                     } else {
                         await ref.update(payload);
                     }
                 }
+
+                // Logging Updates
+                if (node === 'lousa_order') logAction('Reorganizou Lousa', `Data: ${lousaDate}`);
+                else if (node === 'madrugada_order') logAction('Reorganizou Madrugada', `Data: ${currentOpDate}`);
+                else if (node === 'canned_messages_config/list') logAction('Editou Mensagens Prontas', 'Lista atualizada');
+                else if (node.startsWith('system_settings')) logAction('Editou Configurações', `Configuração: ${node}`);
+                else if (node === 'passengers') {
+                    const pName = payload.name || data.passengers.find((p:any) => p.id === targetId)?.name || 'ID '+targetId;
+                    if (payload.status === 'Bloqueado') logAction('Bloqueou Passageiro', `Nome: ${pName}`);
+                    else if (payload.status === 'Ativo' && payload.blockReason === null) logAction('Desbloqueou Passageiro', `Nome: ${pName}`);
+                    else if (payload.name) logAction('Editou Passageiro', `Nome: ${payload.name}`);
+                }
+                else if (node === 'drivers' && payload.name) logAction('Editou Motorista', `Nome: ${payload.name}`);
+                else if (node === 'drivers_table_list') logAction('Editou Tabela Motoristas', 'Lista de motoristas na tabela atualizada');
+                else if (node === 'table_status') logAction('Alterou Status Tabela', 'Status da tabela atualizado');
+                else if (node === 'notes') logAction('Editou Nota', `Status: ${payload.completed ? 'Concluída' : 'Pendente'}`);
+                else if (node === 'trips') {
+                    if (payload.paymentStatus === 'Pago') logAction('Marcou como Pago', `Viagem: ${payload.driverName || 'ID '+targetId}`);
+                    else if (payload.paymentStatus === 'Pendente') logAction('Removeu Pagamento', `Viagem: ${payload.driverName || 'ID '+targetId}`);
+                    else if (payload.status) logAction('Alterou Status Viagem', `Viagem: ${payload.driverName || 'ID '+targetId} -> ${payload.status}`);
+                    else logAction('Editou Viagem', `Motorista: ${payload.driverName || 'ID '+targetId}`);
+                }
+                else if (node === 'lostFound') logAction('Editou Achados e Perdidos', `Item: ${payload.item || 'ID '+targetId}`);
+                else if (node === 'users') logAction('Editou Usuário', `Username: ${payload.username || 'ID '+targetId}`);
+
                 if (node !== 'preferences') notify("Atualizado!", "success");
             } else if (type === 'delete') {
                 // Lógica de segurança para Operador: limite de 3 exclusões seguidas de passageiros/motoristas
@@ -791,6 +850,15 @@ const AppContent = () => {
                 } else {
                     await ref.child(idToDelete).remove();
                 }
+
+                // Logging Deletions
+                if (node === 'passengers') logAction('Excluiu Passageiro', `ID: ${idToDelete}`);
+                else if (node === 'drivers') logAction('Excluiu Motorista', `ID: ${idToDelete}`);
+                else if (node === 'trips') logAction('Excluiu Viagem', `ID: ${idToDelete}`);
+                else if (node === 'lostFound') logAction('Excluiu Achados e Perdidos', `ID: ${idToDelete}`);
+                else if (node === 'users') logAction('Excluiu Usuário', `ID: ${idToDelete}`);
+                else if (node === 'notes') logAction('Excluiu Nota', `ID: ${idToDelete}`);
+
                 notify("Excluído.", "info");
             }
         } catch (e: any) { 
@@ -813,6 +881,7 @@ const AppContent = () => {
                 return notify("Apenas quem recebeu ou um ADMIN pode desmarcar este pagamento.", "error");
             }
             await ref.remove();
+            logAction('Removeu Pagamento Prancheta', `Vaga: ${vaga} - Semana: ${viewedWeekId}`);
             notify(`Pagamento da vaga ${vaga} removido.`, "info");
         } else {
             await ref.set({
@@ -820,6 +889,7 @@ const AppContent = () => {
                 receivedBy: user.username,
                 receivedAt: new Date().toISOString()
             });
+            logAction('Marcou Pagamento Prancheta', `Vaga: ${vaga} - Semana: ${viewedWeekId}`);
             notify(`Vaga ${vaga} marcada como paga!`, "success");
         }
     };
@@ -1217,6 +1287,19 @@ const AppContent = () => {
         let unsubs: any[] = [];
 
         const setupListeners = async () => {
+            // Reset data state to prevent leakage between different system contexts or users
+            setData({ 
+                passengers: [], 
+                drivers: [], 
+                trips: [], 
+                notes: [], 
+                lostFound: [], 
+                blocked_ips: [], 
+                newsletter: [], 
+                users: [], 
+                prancheta: [] 
+            });
+
             // Clear previous listeners
             unsubs.forEach(fn => fn());
             unsubs = [];
@@ -1648,6 +1731,31 @@ const AppContent = () => {
         }
 
         const item = data[col]?.find((i:any) => i.id === id);
+        
+        if (col === 'passengers') {
+            requestConfirm('Excluir Passageiro?', `Deseja excluir ${item?.name || 'este passageiro'}?`, () => {
+                logAction('Excluiu Passageiro', `Nome: ${item?.name || id}`);
+                dbOp('delete', col, id);
+            });
+            return;
+        }
+
+        if (col === 'drivers') {
+            requestConfirm('Excluir Motorista?', `Deseja excluir ${item?.name || 'este motorista'}?`, () => {
+                logAction('Excluiu Motorista', `Nome: ${item?.name || id}`);
+                dbOp('delete', col, id);
+            });
+            return;
+        }
+
+        if (col === 'lostFound') {
+            requestConfirm('Excluir Item?', `Deseja excluir ${item?.item || 'este item'}?`, () => {
+                logAction('Excluiu Achados e Perdidos', `Item: ${item?.item || id}`);
+                dbOp('delete', col, id);
+            });
+            return;
+        }
+
         if (col === 'trips') {
             const trip = data.trips.find((t:any) => t.id === id);
             
@@ -1658,6 +1766,7 @@ const AppContent = () => {
                     : 'Tem certeza que deseja excluir esta viagem?';
 
                 requestConfirm('Excluir viagem?', msg, () => {
+                    logAction('Excluiu Viagem', `Motorista: ${trip.driverName} - ${trip.date} ${trip.time}`);
                     triggerUndo(() => {
                         dbOp('create', col, trip);
                     }, "Viagem excluída");
@@ -1721,6 +1830,7 @@ const AppContent = () => {
         }
 
         db.ref(driversNode).set(newList); 
+        logAction('Editou Tabela Geral', `Vaga ${oldVaga} -> ${tempVaga} (Motorista: ${tempName})`);
         
         if (tempVaga !== oldVaga && tableStatus[oldVaga]) {
             const newStatus = { ...tableStatus };
@@ -2170,6 +2280,17 @@ const AppContent = () => {
             if (collection === 'passengers') {
                 if (!formData.name || !formData.neighborhood) return notify("Nome e Bairro obrigatórios", "error");
                 
+                // Check if a BLOCKED passenger with same name AND phone exists
+                const blocked = data.passengers.find((p: any) => {
+                    const nameSim = calculateSimilarity(p.name, formData.name);
+                    const phoneSim = p.phone && formData.phone ? calculateSimilarity(p.phone, formData.phone) : 0;
+                    return p.status === 'Bloqueado' && nameSim > 0.9 && phoneSim > 0.9;
+                });
+
+                if (blocked) {
+                    return notify(`Passageiro BLOQUEADO encontrado: ${blocked.name}. Motivo: ${blocked.blockReason || 'Não informado'}`, "error");
+                }
+
                 const proceedSave = async (): Promise<boolean> => {
                     const id = formData.id || getNextId('passengers');
                     const payload = { ...formData, id, date: formData.date || getTodayDate() };
@@ -2226,6 +2347,10 @@ const AppContent = () => {
                 await dbOp(formData.id ? 'update' : 'create', 'lostFound', formData);
             } else if (collection === 'reschedule') {
                 if (!formData.time) return notify("Horário obrigatório", "error");
+                const p = data.passengers.find((x:any) => x.id === formData.id);
+                if (p && p.status === 'Bloqueado') {
+                    return notify(`Passageiro BLOQUEADO: ${p.name}. Motivo: ${p.blockReason || 'Não informado'}`, "error");
+                }
                 await dbOp('update', 'passengers', { 
                     id: formData.id, 
                     time: formData.time, 
@@ -2235,7 +2360,7 @@ const AppContent = () => {
             } else if (collection === 'rescheduleAll') {
                 if (!formData.sourceTime || !formData.newTime) return notify("Preencha o horário de origem e o novo horário!", "error");
                 
-                const passengersToReschedule = data.passengers.filter((p: any) => p.time === formData.sourceTime && p.date === formData.date);
+                const passengersToReschedule = data.passengers.filter((p: any) => p.time === formData.sourceTime && p.date === formData.date && p.status !== 'Bloqueado');
                 
                 if (passengersToReschedule.length === 0) return notify("Nenhum passageiro encontrado para este horário!", "error");
                 
@@ -2255,6 +2380,10 @@ const AppContent = () => {
                 for (const idOrName of identifiers) {
                     const p = data.passengers.find((p: any) => String(p.id) === idOrName || p.name.toLowerCase() === idOrName.toLowerCase());
                     if (p) {
+                        if (p.status === 'Bloqueado') {
+                            notify(`Passageiro BLOQUEADO: ${p.name}. Motivo: ${p.blockReason || 'Não informado'}`, "error");
+                            continue;
+                        }
                         await dbOp('update', 'passengers', {
                             id: p.id,
                             date: formData.date,
@@ -2266,6 +2395,14 @@ const AppContent = () => {
                     }
                 }
                 if (foundAny) notify("Agendamentos criados!", "success");
+            } else if (collection === 'blockPassenger') {
+                if (!formData.id) return notify("Erro: ID não encontrado", "error");
+                await dbOp('update', 'passengers', { 
+                    id: formData.id, 
+                    status: 'Bloqueado', 
+                    blockReason: formData.blockReason || 'Motivo não informado' 
+                });
+                notify("Passageiro bloqueado com sucesso!", "success");
             }
             setModal(null);
             setFormData({});
@@ -2503,6 +2640,10 @@ const AppContent = () => {
         const p = data.passengers.find((x:any) => x.id === searchId || x.realId === searchId);
         if (!p) return notify("Passageiro não encontrado", "error");
         
+        if (p.status === 'Bloqueado') {
+            return notify(`Passageiro BLOQUEADO! Motivo: ${p.blockReason || 'Não informado'}`, "error");
+        }
+
         const pId = p.realId || p.id;
         if (suggestedTrip.passengers.some((x:any) => (x.realId || x.id) === pId)) return notify("Já está na lista atual", "info");
         
@@ -2779,23 +2920,30 @@ const AppContent = () => {
         if (action === 'riscar') {
             const newRiscadoState = !newLousa[itemIndex].riscado;
             newLousa[itemIndex].riscado = newRiscadoState;
+            logAction(newRiscadoState ? 'Riscou Vaga na Lousa' : 'Desriscou Vaga na Lousa', `Vaga: ${newLousa[itemIndex].vaga}`);
         } else if (action === 'remove') {
             const itemToRemove = newLousa[itemIndex];
-            if(itemToRemove) removeTempTrip(itemToRemove.vaga);
+            if(itemToRemove) {
+                removeTempTrip(itemToRemove.vaga);
+                logAction('Removeu Vaga da Lousa', `Vaga: ${itemToRemove.vaga}`);
+            }
             newLousa.splice(itemIndex, 1);
             // Don't remove status anymore, keep in confirmed list
         } else if (action === 'remove_all') {
             if (vagaRef) {
                 removeTempTrip(vagaRef);
                 newLousa = newLousa.filter((i:any) => i.vaga !== vagaRef);
+                logAction('Removeu Todas as Vagas da Lousa', `Vaga: ${vagaRef}`);
                 // Don't remove status anymore, keep in confirmed list
             }
         } else if (action === 'duplicate') {
             if (itemIndex > -1) {
                 const original = newLousa[itemIndex];
                 newLousa.push({ vaga: original.vaga, uid: generateUniqueId(), riscado: false });
+                logAction('Duplicou Vaga na Lousa', `Vaga: ${original.vaga}`);
             } else if (vagaRef) {
                  newLousa.push({ vaga: vagaRef, uid: generateUniqueId(), riscado: false });
+                 logAction('Duplicou Vaga na Lousa', `Vaga: ${vagaRef}`);
             }
         } else if (action === 'baixar') {
             // Marca como baixou (não conta mais no horário)
@@ -2804,6 +2952,7 @@ const AppContent = () => {
             removeTempTrip(newLousa[itemIndex].vaga);
             // Cria uma nova entrada limpa no final da fila
             newLousa.push({ vaga: newLousa[itemIndex].vaga, uid: generateUniqueId(), riscado: false });
+            logAction('Baixou Vaga na Lousa', `Vaga: ${newLousa[itemIndex].vaga}`);
         } else if (action === 'cancelar_baixar') {
             if (itemIndex > -1) {
                 const vaga = newLousa[itemIndex].vaga;
@@ -2861,6 +3010,7 @@ const AppContent = () => {
         requestConfirm("Remover esta vaga da madrugada?", "Ela sairá da lista da madrugada permanentemente.", () => {
             const newList = madrugadaList.filter((v: string) => v !== vaga);
             db.ref(tableSystemContext === 'Pg' ? 'madrugada_config/list' : `${tableSystemContext}/madrugada_config/list`).set(newList);
+            logAction('Removeu Vaga da Madrugada', `Vaga: ${vaga}`);
         });
     };
 
@@ -2869,6 +3019,7 @@ const AppContent = () => {
         const currentData = madrugadaData[vaga] || {};
         if (currentData.riscado) {
              db.ref(tableSystemContext === 'Pg' ? `daily_tables/${currentOpDate}/madrugada/${vaga}` : `${tableSystemContext}/daily_tables/${currentOpDate}/madrugada/${vaga}`).update({ riscado: false, comment: null });
+             logAction('Desriscou Vaga na Madrugada', `Vaga: ${vaga}`);
         } else {
             setVagaToBlock(vaga);
             setTempJustification('');
@@ -2883,6 +3034,7 @@ const AppContent = () => {
             riscado: true, 
             comment: tempJustification 
         });
+        logAction('Riscou Vaga na Madrugada', `Vaga: ${vagaToBlock} - Motivo: ${tempJustification}`);
         setModal(null);
         setVagaToBlock(null);
     };
@@ -3160,7 +3312,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                     setModal('passenger'); 
                                 } else { setModal('trip'); setFormData({}); } 
                             }} dbOp={dbOp} setAiModal={setAiModal} user={user} systemContext={systemContext} notify={notify} />}
-                            {view === 'passengers' && <Passageiros data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} systemContext={systemContext} />}
+                            {view === 'passengers' && <Passageiros data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} systemContext={systemContext} dbOp={dbOp} />}
                             {view === 'drivers' && <Motoristas data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} />}
                             {view === 'trips' && <Viagens data={{...data, pricePerPassenger}} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} setFormData={setFormData} openEditTrip={openEditTrip} updateTripStatus={updateTripStatus} del={del} duplicateTrip={duplicateTrip} notify={notify} systemContext={systemContext} pranchetaValue={pranchetaValue} />}
                             {view === 'appointments' && <Agendamentos data={data} theme={theme} setFormData={setFormData} setModal={setModal} dbOp={dbOp} setSuggestedTrip={setSuggestedTrip} setEditingTripId={setEditingTripId} notify={notify} requestConfirm={requestConfirm} systemContext={systemContext} />}

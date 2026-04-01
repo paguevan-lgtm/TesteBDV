@@ -356,6 +356,34 @@ export const GlobalModals = ({
                     {modal === 'madrugadaVaga' && (<div className="space-y-6"><div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm text-yellow-200">Digite o número da vaga do motorista para adicionar à tabela da Madrugada.</div><Input theme={theme} label="Número da Vaga" value={tempVagaMadrugada} onChange={(e:any) => setTempVagaMadrugada(e.target.value)} placeholder="Ex: 05" autoFocus /><div className="pt-4"><Button theme={theme} onClick={confirmAddMadrugadaVaga} icon={Icons.Check}>Confirmar Adição</Button></div></div>)}
                     
                     {modal === 'madrugadaBlock' && (<div className="space-y-6"><div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-200">Justifique o por que riscou a vaga <span className="font-bold font-mono">{vagaToBlock}</span> na Madrugada.</div><Input theme={theme} label="Motivo (Opcional)" value={tempJustification} onChange={(e:any) => setTempJustification(e.target.value)} placeholder="Ex: Quebrou, Médico, Folga..." autoFocus /><div className="pt-4 grid grid-cols-2 gap-3"><Button theme={theme} variant="secondary" onClick={()=>setModal(null)}>Cancelar</Button><Button theme={theme} onClick={confirmMadrugadaBlock} icon={Icons.Check} variant="danger">Bloquear</Button></div></div>)}
+
+                    {modal === 'blockPassenger' && (
+                        <div className="space-y-6">
+                            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-200 flex items-center gap-3">
+                                <Icons.Slash size={24} className="shrink-0 text-red-500"/>
+                                <div>
+                                    <span className="font-bold block">Bloquear Passageiro</span>
+                                    Você está prestes a bloquear <span className="font-bold text-white">{formData.name}</span>. Ele não poderá ser agendado nem colocado em viagens.
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-bold opacity-60 ml-1">Motivo do Bloqueio</label>
+                                <textarea 
+                                    className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 w-full outline-none focus:border-white/50 transition-colors h-32 resize-none" 
+                                    placeholder="Explique o motivo do bloqueio..." 
+                                    value={formData.blockReason || ''} 
+                                    onChange={(e:any)=>setFormData({...formData, blockReason:e.target.value})}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="pt-4 grid grid-cols-2 gap-3">
+                                <Button theme={theme} variant="secondary" onClick={()=>setModal(null)}>Cancelar</Button>
+                                <Button theme={theme} onClick={()=>save('blockPassenger')} icon={Icons.Slash} variant="danger">Confirmar Bloqueio</Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

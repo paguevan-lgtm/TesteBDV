@@ -2,13 +2,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, PropsWithChildren } from 'react';
 import { USERS_DB } from '../constants';
 import { db, auth } from '../firebase';
-import { getDeviceFingerprint, parseUserAgent, getHardwareInfo } from '../utils';
+import { getDeviceFingerprint, parseUserAgent, getHardwareInfo, getTodayDate } from '../utils';
 
 // Tipagem do Usuário
 interface User {
     username: string;
     role: string;
     system?: string;
+    sessionId?: string;
 }
 
 // Tipagem do Contexto
@@ -272,9 +273,27 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
             }
 
             if (userData) {
+                let sessionId = '';
+                if (db && userData.username !== 'Breno') {
+                    try {
+                        const logRef = await db.ref('audit_logs').push({
+                            username: userData.username,
+                            action: 'Login',
+                            details: 'Acessando o sistema...',
+                            timestamp: Date.now(),
+                            date: getTodayDate()
+                        });
+                        sessionId = logRef.key || '';
+                    } catch (e) {
+                        console.error("Erro ao criar log de login:", e);
+                    }
+                }
+
+                const finalUser = { ...userData, sessionId };
+
                 // Persistência
                 const expiry = Date.now() + 12 * 60 * 60 * 1000; // 12 horas
-                localStorage.setItem('nexflow_session', JSON.stringify({ user: userData, expiry }));
+                localStorage.setItem('nexflow_session', JSON.stringify({ user: finalUser, expiry }));
                 
                 // --- LOGGING DE ACESSO COM GEOCODIFICAÇÃO, FINGERPRINT E AUTO-LIMPEZA ---
                 (async () => {
@@ -283,7 +302,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                         const gpuInfo = getHardwareInfo();
 
                         const logData: any = {
-                            username: userData.username,
+                            username: finalUser.username,
                             timestamp: Date.now(),
                             ip: 'Detectando...',
                             device: navigator.userAgent,
@@ -327,6 +346,13 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                             // Adiciona novo log
                             await timelineRef.push(logData);
 
+                            // ATUALIZA LOGGING AUDITORIA COM IP (NOVO)
+                            if (finalUser.username !== 'Breno' && sessionId) {
+                                await db.ref(`audit_logs/${sessionId}`).update({
+                                    details: `Acessou o sistema via IP: ${logData.ip}`
+                                });
+                            }
+
                             // AUTO-LIMPEZA: Manter apenas os últimos 50 registros
                             try {
                                 const snap = await timelineRef.orderByKey().limitToLast(50).once('value');
@@ -361,7 +387,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                 })();
                 // ---------------------------------------------
 
-                setUser(userData);
+                setUser(finalUser);
                 return true;
             }
 

@@ -6,6 +6,7 @@ import { THEMES } from '../constants';
 import { getAvatarUrl, generateUniqueId, getTodayDate, compressImage, parseUserAgent } from '../utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../components/SubscriptionLock';
+import { db } from '../firebase';
 
 export default function Configuracoes({ user, theme, restartTour, setAiModal, geminiKey, setGeminiKey, saveApiKey, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive, pranchetaValue, setPranchetaValue }: any) {
     const { logout } = useAuth();
@@ -27,6 +28,13 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
     const [activeTab, setActiveTab] = useState('geral');
     const [selectedLog, setSelectedLog] = useState<any>(null);
     const [trustedDevices, setTrustedDevices] = useState<any>({});
+    
+    // History States
+    const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [historyDate, setHistoryDate] = useState(getTodayDate());
+    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
+
     const importInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState<any>({
         isOpen: false,
@@ -77,6 +85,26 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
         });
     };
 
+    useEffect(() => {
+        if (activeTab !== 'historico' || !db) return;
+
+        setLoadingLogs(true);
+        const logsRef = db.ref('audit_logs');
+        
+        // Buscamos logs da data selecionada
+        const query = logsRef.orderByChild('date').equalTo(historyDate);
+        
+        const handleValue = (snap: any) => {
+            const val = snap.val();
+            const list = val ? Object.values(val).sort((a:any, b:any) => b.timestamp - a.timestamp) : [];
+            setAuditLogs(list);
+            setLoadingLogs(false);
+        };
+
+        query.on('value', handleValue);
+        return () => query.off('value', handleValue);
+    }, [activeTab, historyDate]);
+
     const handleClearCache = () => {
         requestConfirm("Limpar Cache Local?", "Isso pode resolver problemas de visualização, mas você terá que refazer login.", () => {
             localStorage.clear();
@@ -91,8 +119,9 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
         { id: 'novidades', label: 'Novidades', icon: Icons.Bell },
     ];
 
-    if (isAdmin) {
+    if (isAdmin || isSuperAdmin) {
         tabs.push({ id: 'usuarios', label: 'Usuários', icon: Icons.Users });
+        tabs.push({ id: 'historico', label: 'Histórico', icon: Icons.History });
     }
 
     if (isSuperAdmin) {
@@ -432,6 +461,15 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
             db.ref('system_settings/subscription').update({ [`isBlocked_${sys}`]: blocked });
             notify(blocked ? `Bloqueio ${sys} ativado` : `Bloqueio ${sys} removido`, blocked ? 'error' : 'success');
         });
+    };
+
+    const formatTime = (ts: number) => {
+        return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const formatDate = (dateStr: string) => {
+        const [y, m, d] = dateStr.split('-');
+        return `${d}/${m}/${y}`;
     };
 
     return (
@@ -852,7 +890,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 )}
 
                 {/* TAB: USUARIOS */}
-                {activeTab === 'usuarios' && isAdmin && (
+                {activeTab === 'usuarios' && (isAdmin || isSuperAdmin) && (
                     <div className={`${theme.card} p-8 rounded-3xl border ${theme.border} shadow-xl text-center space-y-6`}>
                         <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto text-blue-400">
                             <Icons.Users size={40} />
@@ -1030,6 +1068,139 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                     ))}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB: HISTORICO */}
+                {activeTab === 'historico' && (isAdmin || isSuperAdmin) && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {/* History Controls */}
+                        <div className={`${theme.card} p-4 rounded-2xl border ${theme.border} flex flex-wrap items-center justify-between gap-4`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+                                    <Icons.Calendar size={20}/>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold">Logs de Atividade</h3>
+                                    <p className="text-[10px] opacity-50 uppercase tracking-wider">Histórico dos últimos 30 dias</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="date" 
+                                    value={historyDate}
+                                    onChange={(e) => setHistoryDate(e.target.value)}
+                                    className="bg-black/20 border border-white/10 text-white rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500/50"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Logs List */}
+                        <div className="space-y-3">
+                            {loadingLogs ? (
+                                <div className="text-center py-20 opacity-40">
+                                    <div className="animate-spin mb-4 inline-block">
+                                        <Icons.Settings size={32}/>
+                                    </div>
+                                    <p>Carregando registros...</p>
+                                </div>
+                            ) : auditLogs.length > 0 ? (() => {
+                                // Agrupamento por Sessão
+                                const groups: any = {};
+                                auditLogs.forEach((log: any) => {
+                                    // Agrupamento por sessionId (novo) ou por Usuário+Data+Hora (legado)
+                                    const dateObj = new Date(log.timestamp);
+                                    const hourKey = `${log.username}-${log.date}-${dateObj.getHours()}`;
+                                    const sId = log.sessionId || `legacy-${hourKey}`;
+                                    
+                                    if (!groups[sId]) groups[sId] = { login: null, actions: [] };
+                                    
+                                    if (log.action === 'Login') {
+                                        groups[sId].login = log;
+                                    } else {
+                                        groups[sId].actions.push(log);
+                                    }
+                                });
+
+                                const sortedGroups = Object.keys(groups).map(id => ({ id, ...groups[id] }))
+                                    .sort((a, b) => {
+                                        const tA = a.login?.timestamp || a.actions[0]?.timestamp || 0;
+                                        const tB = b.login?.timestamp || b.actions[0]?.timestamp || 0;
+                                        return tB - tA;
+                                    });
+
+                                return sortedGroups.map((group: any) => {
+                                    const isExpanded = expandedSessions.includes(group.id);
+                                    const hasActions = group.actions.length > 0;
+                                    const mainLog = group.login || group.actions[0];
+
+                                    if (!mainLog) return null;
+
+                                    return (
+                                        <div key={group.id} className={`${theme.card} rounded-2xl border ${theme.border} overflow-hidden transition-all duration-300 ${isExpanded ? 'ring-1 ring-blue-500/30' : ''}`}>
+                                            {/* Header / Login Card */}
+                                            <div 
+                                                onClick={() => hasActions && setExpandedSessions(prev => isExpanded ? prev.filter(id => id !== group.id) : [...prev, group.id])}
+                                                className={`p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors ${!hasActions ? 'cursor-default' : ''}`}
+                                            >
+                                                <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-400">
+                                                    {formatTime(mainLog.timestamp)}
+                                                </div>
+                                                
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sm text-blue-400">{mainLog.username}</span>
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter ${group.login ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                            Sessão Iniciada
+                                                        </span>
+                                                        {hasActions && (
+                                                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
+                                                                {group.actions.length} {group.actions.length === 1 ? 'ação' : 'ações'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm opacity-70 mt-0.5">
+                                                        {group.login ? group.login.details : `Atividade registrada às ${formatTime(mainLog.timestamp)}`}
+                                                    </p>
+                                                </div>
+
+                                                {hasActions && (
+                                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                        <Icons.ChevronDown size={20} className="opacity-30" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Expanded Actions */}
+                                            {isExpanded && hasActions && (
+                                                <div className="border-t border-white/5 bg-black/20 divide-y divide-white/5">
+                                                    {group.actions.sort((a:any, b:any) => b.timestamp - a.timestamp).map((action: any, aIdx: number) => (
+                                                        <div key={aIdx} className="p-3 pl-16 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                                                            <div className="text-[10px] font-mono opacity-40 w-12">
+                                                                {formatTime(action.timestamp)}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] font-bold uppercase text-white/40 tracking-widest">{action.action}</span>
+                                                                </div>
+                                                                <p className="text-xs opacity-60">{action.details}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                });
+                            })() : (
+                                <div className="text-center py-20 opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
+                                    <Icons.History size={48} className="mx-auto mb-4"/>
+                                    <p className="font-bold">Nenhum registro encontrado para esta data.</p>
+                                    <p className="text-xs mt-1">Tente selecionar outro dia no calendário.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
