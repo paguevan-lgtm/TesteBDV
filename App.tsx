@@ -19,7 +19,9 @@ import Passageiros from './pages/Passageiros';
 import Motoristas from './pages/Motoristas';
 import Viagens from './pages/Viagens';
 import Agendamentos from './pages/Agendamentos';
-import Tabela from './pages/Tabela';
+import TabelaPg from './pages/TabelaPg';
+import TabelaMip from './pages/TabelaMip';
+import TabelaSv from './pages/TabelaSv';
 import Financeiro from './pages/Financeiro';
 import Achados from './pages/Achados';
 import Configuracoes from './pages/Configuracoes';
@@ -158,6 +160,17 @@ const AppContent = () => {
     const [isSystemSelectorExpanded, setIsSystemSelectorExpanded] = useState(true);
     const [subData, setSubData] = useState<any>(null);
     const [systemContext, setSystemContext] = useState('Pg');
+
+    // Reset tableTab when systemContext changes to ensure valid tab for the system
+    useEffect(() => {
+        if (systemContext === 'Pg' || systemContext === 'Mistura') {
+            setTableTab('geral');
+        } else if (systemContext === 'Mip') {
+            setTableTab('mip6');
+        } else if (systemContext === 'Sv') {
+            setTableTab('sv6');
+        }
+    }, [systemContext]);
 
     const getFolgasForDate = useCallback((targetDateStr: string) => {
         const tableSystemContext = (user?.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
@@ -668,6 +681,10 @@ const AppContent = () => {
                     const timeSuffix = tableTab === 'mip18' ? '18' : '6';
                     return `Mip/drivers_${timeSuffix}_${mipDayType}`;
                 }
+                if (tableSystemContext === 'Sv' && nodeName === 'drivers_table_list') {
+                    const timeSuffix = tableTab === 'sv18' ? '18' : '6';
+                    return `Sv/drivers_${timeSuffix}`;
+                }
                 return tableSystemContext === 'Pg' ? nodeName : `${tableSystemContext}/${nodeName}`;
             }
             if (nodeName === 'preferences') {
@@ -993,6 +1010,9 @@ const AppContent = () => {
         if (tableSystemContext === 'Mip') {
             const timeSuffix = tableTab === 'mip18' ? '18' : '6';
             driversNode = `Mip/drivers_${timeSuffix}_${mipDayType}`;
+        } else if (tableSystemContext === 'Sv') {
+            const timeSuffix = tableTab === 'sv18' ? '18' : '6';
+            driversNode = `Sv/drivers_${timeSuffix}`;
         }
 
         const driversRef = db.ref(driversNode);
@@ -1006,7 +1026,8 @@ const AppContent = () => {
                     db.ref(driversNode).set([]);
                     setSpList([]);
                 } else {
-                    setSpList(Array.isArray(val) ? val : Object.values(val));
+                    const list = Array.isArray(val) ? val : Object.values(val);
+                    setSpList(list.map((d: any) => ({ ...d, id: d.id || d.uid || d.vaga })));
                 }
             } else {
                 setSpList([]);
@@ -2040,6 +2061,74 @@ const AppContent = () => {
         let node = tableSystemContext === 'Mip' ? `Mip/drivers_${timeSuffix}_${mipDayType}` : (tableSystemContext === 'Pg' ? 'drivers_table_list' : `${tableSystemContext}/drivers_table_list`);
         db.ref(node).set(newList);
     };
+
+    const updateSvDriver = (id: string, payload: any) => {
+        const newList = spList.map((d:any) => d.id === id ? { ...d, ...payload } : d);
+        const timeSuffix = tableTab === 'sv18' ? '18' : '6';
+        db.ref(`Sv/drivers_${timeSuffix}`).set(newList);
+    };
+
+    const handleSvBaixar = (id: string) => {
+        if (systemContext !== 'Sv') return;
+        const driver = spList.find((d:any) => d.id === id);
+        if (!driver) return;
+        const vaga = driver.vaga;
+
+        let sourceNode = tableTab === 'sv18' ? `Sv/drivers_18` : `Sv/drivers_6`;
+        let targetNode = tableTab === 'sv6' ? `Sv/drivers_18` : sourceNode;
+
+        if (driver.baixou) {
+            const newList = spList.map((d:any) => d.id === id ? { ...d, baixou: false } : d);
+            db.ref(sourceNode).set(newList);
+            db.ref(targetNode).once('value', (snap) => {
+                const list = snap.val() || [];
+                const reverseList = [...list].reverse();
+                const indexToRemove = reverseList.findIndex((d:any) => d.vaga === vaga && d.isCopy);
+                if (indexToRemove !== -1) {
+                    const realIndex = list.length - 1 - indexToRemove;
+                    const newListWithoutCopy = [...list];
+                    newListWithoutCopy.splice(realIndex, 1);
+                    db.ref(targetNode).set(newListWithoutCopy);
+                    notify("Baixar cancelado!", "info");
+                }
+            });
+            return;
+        }
+
+        const newListWithBaixou = spList.map((d:any) => d.id === id ? { ...d, baixou: true } : d);
+        db.ref(sourceNode).set(newListWithBaixou);
+
+        const copy = { 
+            ...driver, 
+            id: generateUniqueId(), 
+            baixou: false, 
+            riscado: false, 
+            time1: '', 
+            time2: '', 
+            num: '',
+            isCopy: true
+        };
+        
+        db.ref(targetNode).once('value', (snap) => {
+            const list = snap.val() || [];
+            db.ref(targetNode).set([...list, copy]);
+        });
+        notify("Baixou!", "success");
+    };
+
+    const handleSvRiscar = (id: string) => {
+        const oldList = [...spList];
+        const driver = spList.find((d:any) => d.id === id);
+        const timeSuffix = tableTab === 'sv18' ? '18' : '6';
+        const node = `Sv/drivers_${timeSuffix}`;
+
+        triggerUndo(() => {
+            db.ref(node).set(oldList);
+        }, `Vaga ${driver?.vaga || ''} ${driver?.riscado ? 'desmarcada' : 'riscada'}`);
+
+        const newList = spList.map((d:any) => d.id === id ? { ...d, riscado: !d.riscado } : d);
+        db.ref(node).set(newList);
+    };
     
     const addCannedMessage = () => { 
         const newMsg = { id: generateUniqueId(), title: 'Nova Mensagem', text: '' }; 
@@ -3050,36 +3139,89 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
 
                             
                             {/* Tabela Recebe Função para Calcular Listas Futuras */}
-                            {view === 'table' && <Tabela 
-                                data={data} 
-                                pranchetaData={duePranchetaData}
-                                weekId={dueWeekId}
-                                uiTicker={uiTicker}
-                                theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
-                                mipDayType={mipDayType} setMipDayType={setMipDayType}
-                                currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
-                                analysisRotatedList={getRotatedList(analysisDate)} tableStatus={tableStatus} 
-                                editName={editName} tempName={tempName} tempVaga={tempVaga} setEditName={setEditName} setTempName={setTempName} setTempVaga={setTempVaga} saveDriverName={saveDriverName} 
-                                updateTableStatus={updateTableStatus} currentRotatedList={getRotatedList(currentOpDate)} confirmedTimes={confirmedTimes} isTimeExpired={isTimeExpired} 
-                                lousaOrder={lousaOrder} toggleLousaFromConfirmados={toggleLousaFromConfirmados} cancelConfirmation={cancelConfirmation} handleLousaAction={handleLousaAction} startLousaTime={startLousaTime} 
-                                addMadrugadaVaga={addMadrugadaVaga} madrugadaList={madrugadaList} removeMadrugadaVaga={removeMadrugadaVaga} toggleMadrugadaRiscado={toggleMadrugadaRiscado} spList={spList} madrugadaData={madrugadaData} openMadrugadaTrip={openMadrugadaTrip} 
-                                cannedMessages={cannedMessages} addCannedMessage={addCannedMessage} updateCannedMessage={updateCannedMessage} deleteCannedMessage={deleteCannedMessage} 
-                                addNullLousaItem={addNullLousaItem} addNullMadrugadaItem={addNullMadrugadaItem} notify={notify} 
-                                getRotatedList={getRotatedList} 
-                                getRotatedMadrugadaList={getRotatedMadrugadaList} // Nova prop
-                                setSpList={setSpList}
-                                rotationBaseDate={rotationBaseDate}
-                                dbOp={dbOp}
-                                systemContext={systemContext}
-                                updateMipDriver={updateMipDriver}
-                                handleMipBaixar={handleMipBaixar}
-                                handleMipRiscar={handleMipRiscar}
-                                triggerUndo={triggerUndo}
-                                ganchos={ganchos}
-                                effectiveFolgas={effectiveFolgas}
-                                getFolgasForDate={getFolgasForDate}
-                                user={user}
-                            />}
+                            {view === 'table' && (
+                                <>
+                                    {(systemContext === 'Pg' || systemContext === 'Mistura') && (
+                                        <TabelaPg 
+                                            data={data} 
+                                            pranchetaData={duePranchetaData}
+                                            weekId={dueWeekId}
+                                            uiTicker={uiTicker}
+                                            theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
+                                            currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
+                                            analysisRotatedList={getRotatedList(analysisDate)} tableStatus={tableStatus} 
+                                            editName={editName} tempName={tempName} tempVaga={tempVaga} setEditName={setEditName} setTempName={setTempName} setTempVaga={setTempVaga} saveDriverName={saveDriverName} 
+                                            updateTableStatus={updateTableStatus} currentRotatedList={getRotatedList(currentOpDate)} confirmedTimes={confirmedTimes} isTimeExpired={isTimeExpired} 
+                                            lousaOrder={lousaOrder} toggleLousaFromConfirmados={toggleLousaFromConfirmados} cancelConfirmation={cancelConfirmation} handleLousaAction={handleLousaAction} startLousaTime={startLousaTime} 
+                                            addMadrugadaVaga={addMadrugadaVaga} madrugadaList={madrugadaList} removeMadrugadaVaga={removeMadrugadaVaga} toggleMadrugadaRiscado={toggleMadrugadaRiscado} spList={spList} madrugadaData={madrugadaData} openMadrugadaTrip={openMadrugadaTrip} 
+                                            cannedMessages={cannedMessages} addCannedMessage={addCannedMessage} updateCannedMessage={updateCannedMessage} deleteCannedMessage={deleteCannedMessage} 
+                                            addNullLousaItem={addNullLousaItem} addNullMadrugadaItem={addNullMadrugadaItem} notify={notify} 
+                                            getRotatedList={getRotatedList} 
+                                            getRotatedMadrugadaList={getRotatedMadrugadaList}
+                                            setSpList={setSpList}
+                                            rotationBaseDate={rotationBaseDate}
+                                            dbOp={dbOp}
+                                            systemContext={systemContext}
+                                            triggerUndo={triggerUndo}
+                                            ganchos={ganchos}
+                                            effectiveFolgas={effectiveFolgas}
+                                            getFolgasForDate={getFolgasForDate}
+                                            user={user}
+                                        />
+                                    )}
+                                    {systemContext === 'Mip' && (
+                                        <TabelaMip 
+                                            theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
+                                            mipDayType={mipDayType} setMipDayType={setMipDayType}
+                                            currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
+                                            analysisRotatedList={getRotatedList(analysisDate)} 
+                                            editName={editName} tempName={tempName} tempVaga={tempVaga} setEditName={setEditName} setTempName={setTempName} setTempVaga={setTempVaga} saveDriverName={saveDriverName} 
+                                            spList={spList} setSpList={setSpList}
+                                            notify={notify} 
+                                            dbOp={dbOp}
+                                            systemContext={systemContext}
+                                            updateMipDriver={updateMipDriver}
+                                            handleMipBaixar={handleMipBaixar}
+                                            handleMipRiscar={handleMipRiscar}
+                                            cannedMessages={cannedMessages} 
+                                            addCannedMessage={addCannedMessage} 
+                                            updateCannedMessage={updateCannedMessage} 
+                                            deleteCannedMessage={deleteCannedMessage}
+                                            triggerUndo={triggerUndo}
+                                            ganchos={ganchos}
+                                            effectiveFolgas={effectiveFolgas}
+                                            getFolgasForDate={getFolgasForDate}
+                                            user={user}
+                                            rotationBaseDate={rotationBaseDate}
+                                        />
+                                    )}
+                                    {systemContext === 'Sv' && (
+                                        <TabelaSv 
+                                            theme={theme} tableTab={tableTab} setTableTab={setTableTab} 
+                                            currentOpDate={currentOpDate} getTodayDate={getTodayDate} analysisDate={analysisDate} setAnalysisDate={setAnalysisDate} 
+                                            analysisRotatedList={getRotatedList(analysisDate)} 
+                                            editName={editName} tempName={tempName} tempVaga={tempVaga} setEditName={setEditName} setTempName={setTempName} setTempVaga={setTempVaga} saveDriverName={saveDriverName} 
+                                            spList={spList} setSpList={setSpList}
+                                            notify={notify} 
+                                            dbOp={dbOp}
+                                            systemContext={systemContext}
+                                            updateSvDriver={updateSvDriver}
+                                            handleSvBaixar={handleSvBaixar}
+                                            handleSvRiscar={handleSvRiscar}
+                                            cannedMessages={cannedMessages} 
+                                            addCannedMessage={addCannedMessage} 
+                                            updateCannedMessage={updateCannedMessage} 
+                                            deleteCannedMessage={deleteCannedMessage}
+                                            triggerUndo={triggerUndo}
+                                            ganchos={ganchos}
+                                            effectiveFolgas={effectiveFolgas}
+                                            getFolgasForDate={getFolgasForDate}
+                                            user={user}
+                                            rotationBaseDate={rotationBaseDate}
+                                        />
+                                    )}
+                                </>
+                            )}
                             
                             {(view === 'financeiro' || view === 'billing') && <Financeiro 
                                 data={data} 

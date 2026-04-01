@@ -7,6 +7,9 @@ import {
     DndContext,
     closestCenter,
     PointerSensor,
+    MouseSensor,
+    TouchSensor,
+    KeyboardSensor,
     useSensor,
     useSensors,
     DragOverlay,
@@ -16,6 +19,7 @@ import {
     SortableContext,
     verticalListSortingStrategy,
     useSortable,
+    sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
@@ -35,6 +39,7 @@ const SortableRow = ({ id, children, disabled }: any) => {
         transition,
         zIndex: isDragging ? 50 : 1,
         opacity: isDragging ? 0.5 : 1,
+        touchAction: 'none'
     };
 
     return (
@@ -53,16 +58,31 @@ const SortableRow = ({ id, children, disabled }: any) => {
 export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType, setMipDayType, currentOpDate, getTodayDate, analysisDate, setAnalysisDate, analysisRotatedList, tableStatus, editName, tempName, tempVaga, setEditName, setTempName, setTempVaga, saveDriverName, updateTableStatus, currentRotatedList, confirmedTimes, isTimeExpired, lousaOrder, toggleLousaFromConfirmados, cancelConfirmation, handleLousaAction, startLousaTime, addMadrugadaVaga, madrugadaList, removeMadrugadaVaga, toggleMadrugadaRiscado, spList, setSpList, madrugadaData, openMadrugadaTrip, cannedMessages, addCannedMessage, updateCannedMessage, deleteCannedMessage, addNullLousaItem, addNullMadrugadaItem, notify, getRotatedList, getRotatedMadrugadaList, dbOp, systemContext, updateMipDriver, handleMipBaixar, handleMipRiscar, triggerUndo, ganchos, effectiveFolgas, getFolgasForDate, user, pranchetaData, weekId, uiTicker, rotationBaseDate }: any) {
 
     const sensors = useSensors(
-        useSensor(PointerSensor, {
+        useSensor(MouseSensor, {
             activationConstraint: {
-                delay: 250,
+                distance: 5,
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 200,
                 tolerance: 5,
             },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
         })
     );
 
+    const [activeId, setActiveId] = useState<string | null>(null);
+
+    const handleGeralDragStart = (event: any) => {
+        setActiveId(event.active.id);
+    };
+
     const handleGeralDragEnd = (event: any) => {
         const { active, over } = event;
+        setActiveId(null);
         if (active.id !== over?.id) {
             const oldIndex = analysisRotatedList.findIndex((i: any) => (i.id || `vaga-${i.vaga}`) === active.id);
             const newIndex = analysisRotatedList.findIndex((i: any) => (i.id || `vaga-${i.vaga}`) === over.id);
@@ -88,8 +108,13 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
         }
     };
 
+    const handleLousaDragStart = (event: any) => {
+        setActiveId(event.active.id);
+    };
+
     const handleLousaDragEnd = (event: any) => {
         const { active, over } = event;
+        setActiveId(null);
         if (active.id !== over?.id) {
             const oldIndex = lousaOrder.findIndex((i: any) => i.id === active.id);
             const newIndex = lousaOrder.findIndex((i: any) => i.id === over.id);
@@ -98,13 +123,33 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
         }
     };
 
+    const handleMadrugadaDragStart = (event: any) => {
+        setActiveId(event.active.id);
+    };
+
     const handleMadrugadaDragEnd = (event: any) => {
         const { active, over } = event;
+        setActiveId(null);
         if (active.id !== over?.id) {
-            const oldIndex = madrugadaList.indexOf(active.id);
-            const newIndex = madrugadaList.indexOf(over.id);
-            const newList = arrayMove(madrugadaList, oldIndex, newIndex);
-            dbOp('update', 'madrugada_list', newList);
+            const rotatedVagas = madrugadaOrderedList.map((i: any) => i.vaga);
+            
+            // Extract original indices from the unique IDs (format: `madrugada-${vaga}-${index}`)
+            const oldIndex = parseInt(active.id.split('-').pop());
+            const newIndex = parseInt(over.id.split('-').pop());
+            
+            if (!isNaN(oldIndex) && !isNaN(newIndex)) {
+                const newRotatedVagas = arrayMove(rotatedVagas, oldIndex, newIndex);
+                
+                // Un-rotation logic to save the base list correctly
+                const start = new Date(`${rotationBaseDate}T00:00:00`).getTime(); 
+                const current = new Date(madrugadaDisplayDate + 'T00:00:00').getTime();
+                const diff = Math.floor((current - start) / (86400000));
+                const len = madrugadaList.length;
+                const mod = ((diff % len) + len) % len;
+                
+                const newList = [...newRotatedVagas.slice(len - mod), ...newRotatedVagas.slice(0, len - mod)];
+                dbOp('update', 'madrugada_config/list', newList);
+            }
         }
     };
 
@@ -189,16 +234,21 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
         dbOp('update', 'drivers_table_list', newList);
     };
 
-    const removeVaga = (id: string) => {
+    const removeVaga = (id: string, vaga: string) => {
         const oldList = [...spList];
-        const driver = spList.find((d: any) => d.id === id);
+        const driver = spList.find((d: any) => (id && d.id === id) || d.vaga === vaga);
         
+        if (!driver) return;
+
         triggerUndo(() => {
             setSpList(oldList);
             dbOp('update', 'drivers_table_list', oldList);
-        }, `Vaga ${driver?.vaga || ''} (${driver?.name || ''}) removida`);
+        }, `Vaga ${driver.vaga} (${driver.name}) removida`);
 
-        const newList = spList.filter((d: any) => d.id !== id);
+        const newList = spList.filter((d: any) => {
+            if (id && d.id) return d.id !== id;
+            return d.vaga !== vaga;
+        });
         setSpList(newList);
         dbOp('update', 'drivers_table_list', newList);
     };
@@ -391,7 +441,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                                             {driver.baixou && <span data-print-size="18px" data-print-color="#60a5fa" data-print-weight="900" data-print-opacity="1" className="text-[10px] uppercase text-blue-400 font-black print:opacity-100 opacity-60">(Baixou)</span>}
                                                         </div>
                                                         <button onClick={()=>{setEditName(driver.vaga); setTempName(driver.name); setTempVaga(driver.vaga)}} className="opacity-20 hover:opacity-100 transition-opacity hide-on-print"><Icons.Edit3 size={14}/></button>
-                                                        <button onClick={() => removeVaga(driver.id)} className="ml-2 text-red-500 opacity-50 hover:opacity-100 transition-opacity hide-on-print"><Icons.Trash size={14}/></button>
+                                                        <button onClick={() => removeVaga(driver.id, driver.vaga)} className="ml-2 text-red-500 opacity-50 hover:opacity-100 transition-opacity hide-on-print"><Icons.Trash size={14}/></button>
                                                     </div>
                                                     {hasGancho && hasGancho.createdBy && hasGancho.createdBy !== 'Breno' && (
                                                         <span className="text-[10px] opacity-40 -mt-1 hide-on-print">por {hasGancho.createdBy}</span>
@@ -514,13 +564,12 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
             {tableTab === 'confirmados' && (
                 <div className="flex flex-col gap-4 anim-fade">
                     <div className={`${theme.card} p-5 rounded-xl border ${theme.border} border-green-500/30 relative overflow-hidden`}>
-                        <div className="flex justify-between items-start mb-4 border-b border-white/10 pb-2 relative z-10">
+                        <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2 relative z-10">
                             <h3 className="text-lg font-bold text-green-400 flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-green-500"></span> CONFIRMADOS
                             </h3>
                             <button onClick={() => onPrint('print-confirmados-list', 'Confirmados', 'LISTA DE CONFIRMADOS', { mode: 'confirmados', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20" title="Salvar como Imagem"><Icons.Print size={18}/></button>
                         </div>
-                        <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none z-0"><Icons.CheckCircle size={64}/></div>
                         
                         <div id="print-confirmados-list" className="space-y-2 min-h-[100px] relative z-10">
                             {confirmadosList.length > 0 ? confirmadosList.map((driver:any, idx: number) => {
@@ -603,25 +652,25 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
             
             {tableTab === 'lousa' && (
                 <div className={`${theme.card} p-3 md:p-5 rounded-xl border ${theme.border} border-yellow-500/30 relative anim-fade`}>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-white/10 pb-2 gap-3 sm:gap-0 relative z-10">
+                    <div className="flex flex-row justify-between items-center mb-4 border-b border-white/10 pb-2 gap-2 relative z-10">
                         <h3 className="text-lg font-bold text-yellow-400 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500"></span> LOUSA</h3>
-                        <div className="flex w-full sm:w-auto justify-end items-center gap-2">
+                        <div className="flex items-center gap-2">
                             <button 
                                 onClick={addNullLousaItem} 
-                                className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs" 
+                                className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs opacity-100" 
                                 title="Adicionar Pulo de Horário"
                             >
                                 <Icons.Plus size={16}/> Pular Horário
                             </button>
-                            <button onClick={() => onPrint('print-lousa-list', 'Lousa', 'LOUSA / FILA', { mode: 'lousa', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20" title="Salvar como Imagem"><Icons.Print size={18}/></button>
+                            <button onClick={() => onPrint('print-lousa-list', 'Lousa', 'LOUSA / FILA', { mode: 'lousa', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20 opacity-100" title="Salvar como Imagem"><Icons.Print size={18}/></button>
                         </div>
                     </div>
-                    <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none z-0"><Icons.List size={64}/></div>
                     
                     <div id="print-lousa-list" className="space-y-2 min-h-[300px] relative z-10">
                         <DndContext 
                             sensors={sensors}
                             collisionDetection={closestCenter}
+                            onDragStart={handleLousaDragStart}
                             onDragEnd={handleLousaDragEnd}
                             modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
                         >
@@ -644,7 +693,6 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                     if (isBaixou) {
                                         displayContent = 'BAIXOU';
                                         timeClass = 'text-orange-500 font-bold';
-                                        // Note: We do NOT increment lousaEffectiveIndex when "Baixou", effectively skipping the time slot calculation for this row
                                     } else if (isRiscado) {
                                         displayContent = 'RISCOU';
                                         timeClass = 'text-red-500 font-bold';
@@ -658,87 +706,110 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                         }
                                         lousaEffectiveIndex++; 
                                     } else {
-                                        // isNullItem
                                         const t = new Date(startLousaTime.getTime() + lousaEffectiveIndex * 30 * 60000); 
                                         displayContent = t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-                                        timeClass = 'opacity-100';
-                                                    lousaEffectiveIndex++;
+                                        timeClass = 'text-yellow-400';
+                                        lousaEffectiveIndex++;
                                     }
                                     
                                     return ( 
                                         <SortableRow key={item.id || `lousa-${item.vaga}-${index}`} id={item.id} disabled={isLocked}>
                                             <div 
-                                                className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border ${isExpired ? 'bg-red-900/10 border-red-500/20 opacity-100' : (isRiscado ? 'bg-red-900/10 border-red-500/20 opacity-100' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20 opacity-100' : 'bg-black/20 border-white/5'))}`}
+                                                className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border opacity-100 ${isExpired ? 'bg-red-900/10 border-red-500/20' : (isRiscado ? 'bg-red-900/10 border-red-500/20' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20' : 'bg-black/20 border-white/5'))}`}
                                             > 
-                                        <div 
-                                            className={`w-[40px] h-[40px] rounded relative flex items-center justify-center flex-shrink-0 ${isNullItem ? 'opacity-0' : (isExpired ? 'bg-red-500/20 text-red-300' : 'bg-white/10 opacity-100')}`}
-                                            data-print-bg="transparent"
-                                        >
-                                            <div 
-                                                className="absolute inset-0 rounded print:bg-transparent"
-                                                data-print-transform="translateY(0px)"
-                                                data-print-bg={isExpired ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)'}
-                                            ></div>
-                                            <span 
-                                                className="font-mono text-sm relative z-10" 
-                                                data-print-decoration={(isRiscado || isExpired || isBaixou) ? "line-through" : "none"}
-                                                data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "16px" : "14px"}
-                                                data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-12px)" : "translateY(-11px)"}
-                                                data-print-size="24px"
-                                                data-print-weight="900"
-                                            >
-                                                {!isNullItem && vaga}
-                                            </span>
-                                        </div>
-                                    <div className="flex-1 flex flex-col min-w-0">
-                                        <span 
-                                            data-print-decoration={(isRiscado || isExpired || isBaixou) ? "line-through" : "none"}
-                                            data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
-                                            data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                            className={`font-bold text-base whitespace-nowrap overflow-hidden text-ellipsis ${isRiscado || isExpired || isBaixou ? 'line-through' : ''} ${isExpired || isBaixou ? 'opacity-100' : ''}`}
-                                        >
-                                            {driver.name}
-                                        </span> 
-                                    </div>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0"> 
-                                        <span 
-                                            data-print-decoration={isTimeCrossed ? "line-through" : "none"}
-                                            data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
-                                            data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                            className={`font-mono font-bold text-lg whitespace-nowrap ${timeClass} ${isTimeCrossed ? 'line-through' : ''}`}
-                                        >
-                                            {displayContent}
-                                        </span> 
-                                        
-                                        {!isNullItem && (
-                                            <>
-                                                <button 
-                                                    onClick={() => handleLousaAction(item.uid, isBaixou ? 'cancelar_baixar' : 'baixar', vaga)} 
-                                                    className={`p-1.5 rounded transition-all hide-on-print flex-shrink-0 ${isBaixou ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-500/20 text-orange-400 border-orange-500/20 hover:bg-orange-500/30'}`}
-                                                    title={isBaixou ? "Cancelar Baixar" : "Baixar vaga"}
-                                                > 
-                                                    {isBaixou ? <Icons.X size={10}/> : <Icons.ArrowDown size={10}/>} 
-                                                </button>
-                                                {!isBaixou && !isRiscado && (
-                                                    <button onClick={() => handleLousaAction(item.uid, 'duplicate', vaga)} className="p-1.5 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 hide-on-print flex-shrink-0" title="Duplicar vaga"> <Icons.Plus size={10}/> </button>
-                                                )}
-                                            </>
-                                        )} 
-                                        
-                                        {!isBaixou && (
-                                            <button onClick={() => handleLousaAction(item.uid, 'riscar', vaga)} className={`p-1.5 bg-white/5 rounded hover:bg-white/10 text-white hide-on-print flex-shrink-0 ${isRiscado ? 'text-red-500 bg-red-500/10' : ''}`} title="Riscar"> 
-                                                <Icons.Slash size={10}/> 
-                                            </button> 
-                                        )}
-                                        
-                                        <button onClick={() => handleLousaAction(item.uid, 'remove', vaga)} className="p-1.5 bg-white/5 rounded hover:bg-red-500/20 text-red-400 hide-on-print flex-shrink-0" title="Remover"><Icons.X size={12}/></button> 
-                                    </div> 
-                                    </div> 
-                                </SortableRow>
-                            ); 
-                        })} 
-                        {(!lousaOrder || lousaOrder.length === 0) && <div className="text-center opacity-30 text-sm py-10">Lousa vazia</div>} 
+                                                <div 
+                                                    className={`w-[40px] h-[40px] rounded relative flex items-center justify-center flex-shrink-0 opacity-100 ${isNullItem ? '' : (isExpired ? 'bg-red-500/20 text-red-300' : 'bg-white/10')}`}
+                                                    data-print-bg="transparent"
+                                                >
+                                                    <div 
+                                                        className="absolute inset-0 rounded print:bg-transparent"
+                                                        data-print-transform="translateY(0px)"
+                                                        data-print-bg={isExpired ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)'}
+                                                    ></div>
+                                                    <span 
+                                                        className="font-mono text-sm relative z-10 opacity-100 text-white font-bold" 
+                                                        data-print-decoration={(isRiscado || isExpired || isBaixou) ? "line-through" : "none"}
+                                                        data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "16px" : "14px"}
+                                                        data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-12px)" : "translateY(-11px)"}
+                                                        data-print-size="24px"
+                                                        data-print-weight="900"
+                                                    >
+                                                        {!isNullItem && vaga}
+                                                    </span>
+                                                </div>
+                                                <div className="flex-1 flex flex-col min-w-0">
+                                                    <span 
+                                                        data-print-decoration={(isRiscado || isExpired || isBaixou) ? "line-through" : "none"}
+                                                        data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
+                                                        data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
+                                                        className={`font-bold text-base whitespace-nowrap overflow-hidden text-ellipsis opacity-100 ${isRiscado || isExpired || isBaixou ? 'line-through text-white/50' : 'text-white'}`}
+                                                    >
+                                                        {driver.name}
+                                                    </span> 
+                                                </div>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0"> 
+                                                    <span 
+                                                        data-print-decoration={isTimeCrossed ? "line-through" : "none"}
+                                                        data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
+                                                        data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
+                                                        className={`font-mono font-bold text-lg whitespace-nowrap opacity-100 ${timeClass} ${isTimeCrossed ? 'line-through' : ''}`}
+                                                    >
+                                                        {displayContent}
+                                                    </span> 
+                                                    
+                                                    {!isNullItem && (
+                                                        <>
+                                                            <button 
+                                                                onClick={() => handleLousaAction(item.uid, isBaixou ? 'cancelar_baixar' : 'baixar', vaga)} 
+                                                                className={`p-1.5 rounded transition-all hide-on-print flex-shrink-0 opacity-100 ${isBaixou ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-500/20 text-orange-400 border-orange-500/20 hover:bg-orange-500/30'}`}
+                                                                title={isBaixou ? "Cancelar Baixar" : "Baixar vaga"}
+                                                            > 
+                                                                {isBaixou ? <Icons.X size={10}/> : <Icons.ArrowDown size={10}/>} 
+                                                            </button>
+                                                            {!isBaixou && !isRiscado && (
+                                                                <button onClick={() => handleLousaAction(item.uid, 'duplicate', vaga)} className="p-1.5 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 hide-on-print flex-shrink-0 opacity-100" title="Duplicar vaga"> <Icons.Plus size={10}/> </button>
+                                                            )}
+                                                        </>
+                                                    )} 
+                                                    
+                                                    {!isBaixou && (
+                                                        <button onClick={() => handleLousaAction(item.uid, 'riscar', vaga)} className={`p-1.5 bg-white/5 rounded hover:bg-white/10 text-white hide-on-print flex-shrink-0 opacity-100 ${isRiscado ? 'text-red-500 bg-red-500/10' : ''}`} title="Riscar"> 
+                                                            <Icons.Slash size={10}/> 
+                                                        </button> 
+                                                    )}
+                                                    
+                                                    <button onClick={() => handleLousaAction(item.uid, 'remove', vaga)} className="p-1.5 bg-white/5 rounded hover:bg-red-500/20 text-red-400 hide-on-print flex-shrink-0 opacity-100" title="Remover"><Icons.X size={12}/></button> 
+                                                </div> 
+                                            </div> 
+                                        </SortableRow>
+                                    ); 
+                                })} 
+                                {(!lousaOrder || lousaOrder.length === 0) && <div className="text-center opacity-100 text-sm py-10">Lousa vazia</div>} 
                             </SortableContext>
+                            <DragOverlay>
+                                {activeId && tableTab === 'lousa' ? (
+                                    <div className="h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border bg-yellow-500/20 border-yellow-500/50 shadow-2xl opacity-90 scale-105 pointer-events-none">
+                                        {(() => {
+                                            const item = lousaOrder.find((i: any) => i.id === activeId);
+                                            if (!item) return null;
+                                            const vaga = item.vaga;
+                                            const isNullItem = item.isNull;
+                                            const driver = isNullItem ? { name: "🚫 HORÁRIO VAGO" } : (spList.find((d:any) => d.vaga === vaga) || { name: '' });
+                                            return (
+                                                <>
+                                                    <div className="w-[40px] h-[40px] rounded bg-white/10 flex items-center justify-center flex-shrink-0">
+                                                        <span className="font-mono text-sm font-bold">{!isNullItem && vaga}</span>
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <span className="font-bold text-base">{driver.name}</span>
+                                                    </div>
+                                                    <Icons.GripVertical size={20} className="text-yellow-400" />
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                ) : null}
+                            </DragOverlay>
                         </DndContext>
                     </div>
                 </div>
@@ -746,41 +817,48 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
             
             {tableTab === 'madrugada' && (
                 <div className={`${theme.card} p-3 md:p-5 rounded-xl border ${theme.border} anim-fade overflow-hidden`}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-3 md:gap-0">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-4 mb-6">
+                        <div className="flex flex-row items-center justify-between gap-2">
                             <h3 className="text-lg font-bold flex items-center gap-2"><Icons.Moon size={20}/> Madrugada</h3>
-                            <div className="flex items-center gap-1 bg-black/30 p-1 rounded-lg ml-2">
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={addNullMadrugadaItem} 
+                                    className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs opacity-100" 
+                                    title="Adicionar Pulo de Horário"
+                                >
+                                    <Icons.Plus size={16}/> Pular Horário
+                                </button>
+                                <Button theme={theme} onClick={addMadrugadaVaga} icon={Icons.Plus} size="sm" variant="success">Adicionar Motorista</Button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                            <div className="flex items-center gap-1 bg-black/30 p-1 rounded-lg">
                                 <button onClick={() => setMadrugadaDisplayDate(dateAddDays(madrugadaDisplayDate, -1))} className="p-1.5 hover:bg-white/10 rounded-md"><Icons.ChevronLeft size={16}/></button>
                                 <div className="px-2 font-mono font-bold text-xs">{formatDisplayDate(madrugadaDisplayDate)}</div>
                                 <button onClick={() => setMadrugadaDisplayDate(dateAddDays(madrugadaDisplayDate, 1))} className="p-1.5 hover:bg-white/10 rounded-md"><Icons.ChevronRight size={16}/></button>
-                                <button onClick={() => setMadrugadaDisplayDate(initialMadrugadaDate)} className="ml-1 text-[10px] bg-white/10 px-2 py-1 rounded hover:bg-white/20">Hoje</button>
+                                <button onClick={() => setMadrugadaDisplayDate(initialMadrugadaDate)} className="text-[10px] bg-white/10 px-2 py-1 rounded hover:bg-white/20">Hoje</button>
                             </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 items-center justify-between md:justify-end w-full md:w-auto">
                             <button 
-                                onClick={addNullMadrugadaItem} 
-                                className="p-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1 font-bold text-xs" 
-                                title="Adicionar Pulo de Horário"
+                                onClick={() => onPrint('print-madrugada-list', 'Madrugada', 'MADRUGADA', { mode: 'madrugada', date: madrugadaDisplayDate })} 
+                                className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30 transition-colors opacity-100" 
+                                title="Salvar como Imagem"
                             >
-                                <Icons.Plus size={16}/> Pular Horário
+                                <Icons.Print size={18}/>
                             </button>
-                            <Button theme={theme} onClick={addMadrugadaVaga} icon={Icons.Plus} size="sm" variant="success">Adicionar Motorista</Button>
-                            
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => onPrint('print-madrugada-list', 'Madrugada', 'MADRUGADA', { mode: 'madrugada', date: madrugadaDisplayDate })} className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30 transition-colors" title="Salvar como Imagem"><Icons.Print size={18}/></button>
-                            </div>
                         </div>
                     </div>
-                    <p className="text-xs opacity-50 mb-3 hide-on-print">Planejamento para a madrugada do dia {formatDisplayDate(madrugadaDisplayDate)}.</p>
+                    <p className="text-xs opacity-100 mb-3 hide-on-print">Planejamento para a madrugada do dia {formatDisplayDate(madrugadaDisplayDate)}.</p>
                     <div id="print-madrugada-list" className="space-y-2">
                         <DndContext 
                             sensors={sensors}
                             collisionDetection={closestCenter}
+                            onDragStart={handleMadrugadaDragStart}
                             onDragEnd={handleMadrugadaDragEnd}
                             modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
                         >
                             <SortableContext 
-                                items={madrugadaOrderedList.map((i: any) => i.vaga)}
+                                items={madrugadaOrderedList.map((i: any, idx: number) => `madrugada-${i.vaga}-${idx}`)}
                                 strategy={verticalListSortingStrategy}
                             >
                                 {/* USANDO LISTA ORDENADA AUTOMATICAMENTE COM BASE NA DATA SELECIONADA */}
@@ -799,20 +877,21 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                     const displayTime = trip ? trip.time : (madrugadaDisplayDate === currentOpDate ? mData.time : '');
                                     const displayQtd = trip ? (trip.pCountSnapshot || trip.pCount) : (madrugadaDisplayDate === currentOpDate ? mData.qtd : '');
 
-                                    let rowClass = `flex flex-col md:flex-row items-center gap-2 p-3 rounded-lg border`;
-                                    if (isCancelled) rowClass += ` bg-red-900/10 border-red-500/30 opacity-100`;
+                                    let rowClass = `flex flex-col md:flex-row items-center gap-2 p-3 rounded-lg border opacity-100`;
+                                    if (isCancelled) rowClass += ` bg-red-900/10 border-red-500/30`;
                                     else if (isFinished) rowClass += ` bg-green-900/10 border-green-500/30`;
                                     else rowClass += ` bg-black/20 border-white/5`;
 
+                                    const uniqueId = `madrugada-${vaga}-${index}`;
+
                                     return ( 
-                                        <SortableRow key={`madrugada-${vaga}-${index}`} id={vaga} disabled={isLocked}>
+                                        <SortableRow key={uniqueId} id={uniqueId} disabled={isLocked}>
                                             <div className={rowClass}> 
                                     <div className="flex items-center gap-3 w-full md:w-auto flex-1 relative min-w-0"> 
-                                        <div className="opacity-30 hide-on-print flex-shrink-0"><Icons.List size={14}/></div> 
-                                        <button onClick={() => removeMadrugadaVaga(vaga)} className="text-red-400 opacity-100 hover:opacity-100 hide-on-print flex-shrink-0"><Icons.Trash size={14}/></button> 
-                                        <button onClick={() => toggleMadrugadaRiscado(vaga)} className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${mData.riscado ? 'text-red-400' : 'text-white/30'} hide-on-print`}> <Icons.Slash size={14}/> </button> 
+                                        <button onClick={(e) => { e.stopPropagation(); removeMadrugadaVaga(vaga); }} className="text-red-400 opacity-100 hover:opacity-100 hide-on-print flex-shrink-0 relative z-30"><Icons.Trash size={14}/></button> 
+                                        <button onClick={(e) => { e.stopPropagation(); toggleMadrugadaRiscado(vaga); }} className={`p-1.5 rounded hover:bg-white/10 flex-shrink-0 ${mData.riscado ? 'text-red-400' : 'text-white/30'} hide-on-print opacity-100 relative z-30`}> <Icons.Slash size={14}/> </button> 
                                         <div 
-                                            className={`relative font-mono text-sm bg-indigo-500/20 text-indigo-300 w-[35px] h-[30px] min-w-[35px] rounded flex items-center justify-center flex-shrink-0 leading-none pt-[1px] print:bg-transparent ${isNullMadrugada ? 'opacity-0' : ''}`}
+                                            className={`relative font-mono text-sm bg-indigo-500/20 text-indigo-300 w-[35px] h-[30px] min-w-[35px] rounded flex items-center justify-center flex-shrink-0 leading-none pt-[1px] print:bg-transparent ${isNullMadrugada ? 'opacity-0' : 'opacity-100'}`}
                                             data-print-bg="transparent"
                                         >
                                             <div 
@@ -821,7 +900,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                                 data-print-bg="rgba(99, 102, 241, 0.2)"
                                             ></div>
                                             <span 
-                                                className="relative z-10"
+                                                className="relative z-10 opacity-100"
                                                 data-print-decoration={(mData.riscado || isCancelled) ? "line-through" : "none"}
                                                 data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "16px" : "14px"}
                                                 data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-12px)" : "translateY(-11px)"}
@@ -831,66 +910,88 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                                 {!isNullMadrugada && vaga}
                                             </span>
                                         </div> 
-                                        <div className="flex flex-col min-w-0 flex-1"> 
-                                            <div className="flex flex-row items-center gap-2">
-                                                <span 
-                                                    data-print-decoration={(mData.riscado || isCancelled) ? "line-through" : "none"}
-                                                    data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
-                                                    data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                                    className={`inline-block font-bold text-lg whitespace-nowrap overflow-visible leading-tight ${mData.riscado || isCancelled ? 'line-through opacity-100' : ''}`}
-                                                >
-                                                    {isNullMadrugada ? "🚫 HORÁRIO VAGO" : driver.name}
-                                                </span> 
-                                                {isCancelled && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded uppercase font-bold">Cancelada</span>}
-                                                {isFinished && <span className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded uppercase font-bold">Finalizada</span>}
-                                                {mData.riscado && mData.comment && ( <div className="text-[12px] text-red-300 bg-red-900/30 px-2 py-1 rounded w-fit flex items-center justify-center leading-tight whitespace-nowrap overflow-visible max-w-full relative top-[3px] font-bold">{mData.comment}</div> )} 
-                                            </div>
-                                        </div> 
-                                    </div> 
-                                    {!mData.riscado && ( 
-                                        <div className="flex items-center gap-2 w-full md:w-auto md:justify-end flex-shrink-0 mt-2 md:mt-0"> 
-                                            <div className="flex gap-2 hide-on-print w-full md:w-auto items-center">
-                                                <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-20 text-center text-white">
-                                                    {displayQtd || '-'}
-                                                </div>
-                                                <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-32 text-center text-white text-sm">
-                                                    {displayTime || '-'}
-                                                </div>
-                                                
-                                                <button 
-                                                    onClick={() => openMadrugadaTrip(vaga, madrugadaDisplayDate)}
-                                                    className="p-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 rounded-lg transition-colors font-bold text-xs flex items-center gap-1"
-                                                    title="Editar Viagem"
-                                                >
-                                                    <Icons.Edit size={14}/> Gerenciar
-                                                </button>
-                                            </div>
-                                            <div className="show-on-print hidden font-bold text-indigo-200 text-lg"> 
-                                                <span 
-                                                    data-print-decoration={isCancelled ? "line-through" : "none"}
-                                                    data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
-                                                    data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                                >
-                                                    {displayTime}
-                                                </span> 
-                                                {displayQtd && (
-                                                    <span 
-                                                        className="ml-2 opacity-70" 
-                                                        data-print-decoration={isCancelled ? "line-through" : "none"}
-                                                        data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
-                                                        data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
-                                                    >
-                                                        ({displayQtd})
-                                                    </span>
-                                                )} 
+                                                <div className="flex flex-col min-w-0 flex-1"> 
+                                                    <div className="flex flex-row items-center gap-2">
+                                                        <span 
+                                                            data-print-decoration={(mData.riscado || isCancelled) ? "line-through" : "none"}
+                                                            data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
+                                                            data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
+                                                            className={`font-bold text-base whitespace-nowrap overflow-hidden text-ellipsis opacity-100 ${mData.riscado || isCancelled ? 'line-through' : ''}`}
+                                                        >
+                                                            {isNullMadrugada ? "🚫 HORÁRIO VAGO" : driver.name}
+                                                        </span> 
+                                                        {isCancelled && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded uppercase font-bold opacity-100">Cancelada</span>}
+                                                        {isFinished && <span className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded uppercase font-bold opacity-100">Finalizada</span>}
+                                                        {mData.riscado && mData.comment && ( <div className="text-[12px] text-red-300 bg-red-900/30 px-2 py-1 rounded w-fit flex items-center justify-center leading-tight whitespace-nowrap overflow-visible max-w-full relative top-[3px] font-bold opacity-100">{mData.comment}</div> )} 
+                                                    </div>
+                                                </div> 
                                             </div> 
+                                            {!mData.riscado && ( 
+                                                <div className="flex items-center gap-2 w-full md:w-auto md:justify-end flex-shrink-0 mt-2 md:mt-0 opacity-100"> 
+                                                    <div className="flex gap-2 hide-on-print w-full md:w-auto items-center">
+                                                        <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-20 text-center text-white opacity-100">
+                                                            {displayQtd || '-'}
+                                                        </div>
+                                                        <div className="bg-black/30 border border-white/10 rounded px-3 py-2 w-full md:w-32 text-center text-white text-sm opacity-100">
+                                                            {displayTime || '-'}
+                                                        </div>
+                                                        
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); openMadrugadaTrip(vaga, madrugadaDisplayDate); }}
+                                                            className="p-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 rounded-lg transition-colors font-bold text-xs flex items-center gap-1 opacity-100 relative z-30"
+                                                            title="Editar Viagem"
+                                                        >
+                                                            <Icons.Edit size={14}/> Gerenciar
+                                                        </button>
+                                                    </div>
+                                                    <div className="show-on-print hidden font-bold text-indigo-200 text-lg opacity-100"> 
+                                                        <span 
+                                                            data-print-decoration={isCancelled ? "line-through" : "none"}
+                                                            data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
+                                                            data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
+                                                        >
+                                                            {displayTime}
+                                                        </span> 
+                                                        {displayQtd && (
+                                                            <span 
+                                                                className="ml-2 opacity-100" 
+                                                                data-print-decoration={isCancelled ? "line-through" : "none"}
+                                                                data-print-line-offset={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "18px" : "11px"}
+                                                                data-print-transform={(systemContext === 'Mip' || tableTab.startsWith('mip')) ? "translateY(-10px)" : "translateY(-7px)"}
+                                                            >
+                                                                ({displayQtd})
+                                                            </span>
+                                                        )} 
+                                                    </div> 
+                                                </div> 
+                                            )} 
                                         </div> 
-                                    )} 
-                                </div> 
-                            </SortableRow>
+                                    </SortableRow>
                             ); 
-                        }) : <div className="text-center opacity-30 text-sm py-4">Nenhuma vaga na madrugada para esta data.</div>} 
+                        }) : <div className="text-center opacity-100 text-sm py-4">Nenhuma vaga na madrugada para esta data.</div>} 
                             </SortableContext>
+                            <DragOverlay>
+                                {activeId && tableTab === 'madrugada' ? (() => {
+                                    const parts = activeId.split('-');
+                                    const vagaId = parts[1];
+                                    const isNull = vagaId === 'NULL';
+                                    const driverName = isNull ? "🚫 HORÁRIO VAGO" : (madrugadaOrderedList.find((d: any) => d.vaga === vagaId)?.name || "Arrastando...");
+                                    
+                                    return (
+                                        <div className="bg-indigo-600 p-4 rounded-lg shadow-2xl border border-indigo-400 flex items-center justify-between gap-4 opacity-90 scale-105 pointer-events-none">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white/20 rounded flex items-center justify-center font-mono font-bold text-lg">
+                                                    {isNull ? '🚫' : vagaId}
+                                                </div>
+                                                <span className="font-bold text-lg">
+                                                    {driverName}
+                                                </span>
+                                            </div>
+                                            <Icons.GripVertical size={24} />
+                                        </div>
+                                    );
+                                })() : null}
+                            </DragOverlay>
                         </DndContext>
                     </div>
                 </div>
