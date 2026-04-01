@@ -92,8 +92,8 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
             return;
         }
 
-        // Apenas abre o modal, o usuário deve clicar para confirmar e disparar o prompt do Safari
-        setShowGeoPrompt(true);
+        // Bypass temporário da geolocalização conforme solicitado pelo usuário
+        startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
     };
 
     const executeGeoLogin = () => {
