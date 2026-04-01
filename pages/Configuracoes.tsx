@@ -476,8 +476,8 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
         <div className="space-y-6 pb-20">
             
             {/* 1. PERFIL HEADER */}
-            <div className={`relative overflow-hidden rounded-3xl p-6 md:p-8 border ${theme.border} shadow-2xl group stagger-in d-1`}>
-                <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 opacity-90"></div>
+            <div className={`relative overflow-hidden rounded-3xl p-6 md:p-8 border ${theme.border} shadow-2xl group stagger-in d-1 ${theme.card}`}>
+                <div className={`absolute inset-0 bg-gradient-to-br ${themeKey === 'solar' ? 'from-amber-50 via-white to-amber-50' : 'from-black/60 via-transparent to-black/60'} opacity-50`}></div>
                 <div className={`absolute -top-10 -right-10 p-0 opacity-10 transform rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-6 pointer-events-none`}>
                     <Icons.Settings size={200} />
                 </div>
@@ -485,13 +485,13 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-5">
                         <div className="relative">
-                            <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-tr from-amber-500 to-orange-600 shadow-lg">
-                                <img src={getAvatarUrl(user.username)} alt="User" className="w-full h-full rounded-full bg-slate-950 object-cover" />
+                            <div className={`w-20 h-20 rounded-full p-1 bg-gradient-to-tr ${themeKey === 'solar' ? 'from-amber-400 to-orange-500' : 'from-amber-500 to-orange-600'} shadow-lg`}>
+                                <img src={getAvatarUrl(user.username)} alt="User" className={`w-full h-full rounded-full ${themeKey === 'solar' ? 'bg-white' : 'bg-slate-950'} object-cover`} />
                             </div>
-                            <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 border-4 border-slate-900 rounded-full"></div>
+                            <div className={`absolute bottom-0 right-0 w-6 h-6 bg-green-500 border-4 ${themeKey === 'solar' ? 'border-white' : 'border-slate-900'} rounded-full`}></div>
                         </div>
                         <div>
-                            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">{user.username}</h2>
+                            <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${themeKey === 'solar' ? theme.text : 'text-white'}`}>{user.username}</h2>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
                                     {user.role}
@@ -506,7 +506,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         {isNearExpiration && user.username !== 'Breno' && (
                             <button 
                                 onClick={triggerEarlyRenewal}
-                                className="bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30 px-5 py-3 rounded-xl flex items-center gap-2 font-bold transition-all active:scale-95 text-sm animate-pulse"
+                                className={`${theme.accent} bg-opacity-10 hover:bg-opacity-20 border border-current px-5 py-3 rounded-xl flex items-center gap-2 font-bold transition-all active:scale-95 text-sm animate-pulse`}
                             >
                                 <Icons.Check size={18}/> Renovar Agora
                             </button>
@@ -527,7 +527,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all whitespace-nowrap border ${
                             activeTab === tab.id 
                             ? `${theme.primary} border-transparent shadow-lg scale-105` 
-                            : 'bg-white/5 border-white/10 opacity-60 hover:opacity-100'
+                            : `${theme.inner} opacity-60 hover:opacity-100`
                         }`}
                     >
                         <tab.icon size={18} />
@@ -545,7 +545,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         {/* MUDAR SENHA */}
                         <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                <Icons.Lock className="text-yellow-400"/> Segurança da Conta
+                                <Icons.Lock className={theme.accent}/> Segurança da Conta
                             </h3>
                             <div className="space-y-3">
                                 <Input 
@@ -569,14 +569,14 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         {/* APARÊNCIA */}
                         <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                <Icons.Stars className="text-amber-400"/> Personalização
+                                <Icons.Stars className={theme.accent}/> Personalização
                             </h3>
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 {Object.entries(THEMES).slice(0, 4).map(([key, t]: any) => (
                                     <button 
                                         key={key} 
                                         onClick={() => changeTheme(key)} 
-                                        className={`relative group overflow-hidden rounded-xl border transition-all duration-300 ${themeKey === key ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-white/10 hover:border-white/30'}`}
+                                        className={`relative group overflow-hidden rounded-xl border transition-all duration-300 ${themeKey === key ? `border-amber-500 ring-2 ring-amber-500/20` : `${theme.divider} hover:border-opacity-50`}`}
                                     >
                                         <div className={`h-12 w-full ${t.bg} flex items-center justify-center`}>
                                             <div className={`w-6 h-6 rounded-full ${t.primary} shadow-lg flex items-center justify-center`}>
@@ -600,7 +600,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         {/* CONFIGURAÇÃO DE COBRANÇA */}
                         <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                <Icons.Dollar className="text-green-400"/> Valores de Cobrança
+                                <Icons.Dollar className={theme.accent}/> Valores de Cobrança
                             </h3>
                             <div className="space-y-3">
                                 <p className="text-sm opacity-70">Defina o valor padrão por passageiro para o sistema atual.</p>
@@ -678,31 +678,31 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
 
                         {/* ASSINATURA */}
                         {!isSuperAdmin && (
-                            <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg border-blue-500/20`}>
-                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-400">
-                                    <Icons.CreditCard className="text-blue-400"/> Plano e Assinatura
+                            <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
+                                <h3 className={`font-bold text-lg mb-4 flex items-center gap-2 ${theme.accent}`}>
+                                    <Icons.CreditCard className={theme.accent}/> Plano e Assinatura
                                 </h3>
                                 
-                                <div className="bg-black/20 p-4 rounded-xl border border-white/5 mb-4">
+                                <div className={`${theme.inner} p-4 rounded-xl border ${theme.divider} mb-4`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <h4 className="font-bold text-white text-sm">Sistema {systemContext}</h4>
+                                            <h4 className={`font-bold text-sm ${theme.text}`}>Sistema {systemContext}</h4>
                                             <p className="text-[10px] opacity-60">Status da conta</p>
                                         </div>
                                         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${daysRemaining === 'Expirado' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                                             {daysRemaining === 'Expirado' ? 'Expirado' : 'Ativo'}
                                         </div>
                                     </div>
-                                    <div className="text-sm font-bold text-white/90">{daysRemaining}</div>
+                                    <div className={`text-sm font-bold ${theme.text} opacity-90`}>{daysRemaining}</div>
                                 </div>
 
-                                <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className={`flex items-center justify-between ${theme.inner} p-3 rounded-xl border ${theme.divider}`}>
                                     <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${ isRecurringActive ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-white/30' }`}>
+                                        <div className={`p-2 rounded-lg ${ isRecurringActive ? 'bg-purple-500/20 text-purple-400' : 'opacity-30' }`}>
                                             <Icons.Refresh size={18} className={isRecurringActive ? 'animate-spin-slow' : ''} />
                                         </div>
                                         <div>
-                                            <div className="text-sm font-bold text-white">Renovação Automática</div>
+                                            <div className={`text-sm font-bold ${theme.text}`}>Renovação Automática</div>
                                             <div className="text-[10px] opacity-60">Cobrança mensal recorrente</div>
                                         </div>
                                     </div>
@@ -740,12 +740,12 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* IA CONFIG */}
                         <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
-                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Stars className="text-purple-400"/> Inteligência Artificial</h3>
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Stars className={theme.accent}/> Inteligência Artificial</h3>
                             <p className="text-xs opacity-60 mb-4">Habilite o Cadastro Mágico e automações de voz com sua chave Gemini.</p>
                             <div className="space-y-3">
                                 <input 
                                     type="password" 
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-purple-500/50 transition-colors" 
+                                    className={`w-full ${theme.inner} border ${theme.divider} rounded-xl px-4 py-3 text-sm outline-none focus:border-opacity-50 transition-colors`} 
                                     placeholder="API Key do Google Gemini" 
                                     value={geminiKey} 
                                     onChange={(e:any)=>setGeminiKey(e.target.value)} 
@@ -757,7 +757,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         {/* FERRAMENTAS */}
                         <div className="space-y-6">
                             <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
-                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Shield className="text-green-400"/> Backup e Dados</h3>
+                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Shield className={theme.accent}/> Backup e Dados</h3>
                                 <div className="space-y-3">
                                     <Button theme={theme} onClick={handleExportData} variant="secondary" className="w-full" icon={Icons.Download}>Exportar Backup JSON</Button>
                                     
@@ -804,10 +804,10 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                         </div>
 
                                         {/* Progress Stats */}
-                                        <div className="grid grid-cols-3 gap-2 py-3 bg-white/5 rounded-xl border border-white/5">
+                                        <div className={`grid grid-cols-3 gap-2 py-3 ${theme.inner} rounded-xl border ${theme.divider}`}>
                                             <div className="text-center">
                                                 <div className="text-[9px] opacity-40 uppercase font-bold">Total</div>
-                                                <div className="text-xs font-bold text-white">{importStatus.total}</div>
+                                                <div className={`text-xs font-bold ${theme.text}`}>{importStatus.total}</div>
                                             </div>
                                             <div className="text-center">
                                                 <div className="text-[9px] text-green-400 uppercase font-bold">Novos</div>
@@ -821,14 +821,14 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
 
                                         {/* Current Activity */}
                                         {importStatus.currentCollection !== 'Concluído!' && (
-                                            <div className="p-3 bg-black/20 rounded-xl border border-white/5">
+                                            <div className={`p-3 ${theme.inner} rounded-xl border ${theme.divider}`}>
                                                 <div className="text-[9px] opacity-40 uppercase font-bold mb-1">Processando: {importStatus.currentCollection}</div>
-                                                <div className="text-[10px] font-medium text-white/80 truncate">{importStatus.currentItem || 'Aguardando...'}</div>
+                                                <div className={`text-[10px] font-medium ${theme.text} opacity-80 truncate`}>{importStatus.currentItem || 'Aguardando...'}</div>
                                                 
                                                 {/* Progress Bar */}
-                                                <div className="mt-2 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                                <div className={`mt-2 h-1 w-full ${theme.divider} bg-opacity-20 rounded-full overflow-hidden`}>
                                                     <div 
-                                                        className="h-full bg-blue-500 transition-all duration-300"
+                                                        className={`h-full ${theme.primary} transition-all duration-300`}
                                                         style={{ width: `${Math.min(100, ((importStatus.added + importStatus.skipped) / (importStatus.total || 1)) * 100)}%` }}
                                                     />
                                                 </div>
@@ -836,14 +836,14 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                         )}
 
                                         {/* Logs */}
-                                        <div className="max-h-48 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl border border-white/5">
+                                        <div className={`max-h-48 overflow-y-auto custom-scrollbar ${theme.inner} rounded-xl border ${theme.divider}`}>
                                             {importStatus.logs.length === 0 ? (
                                                 <div className="text-[10px] opacity-30 text-center py-4 italic">Nenhuma atividade registrada...</div>
                                             ) : (
                                                 importStatus.logs.map((log: any, i: number) => (
-                                                    <div key={i} className="flex items-start gap-2 p-2 border-b border-white/5 last:border-0">
+                                                    <div key={i} className={`flex items-start gap-2 p-2 border-b ${theme.divider} last:border-0`}>
                                                         <div className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${log.type === 'added' ? 'bg-green-500' : log.type === 'skipped' ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                                                        <span className="text-[10px] opacity-70 leading-tight">{log.message}</span>
+                                                        <span className={`text-[10px] ${theme.text} opacity-70 leading-tight`}>{log.message}</span>
                                                     </div>
                                                 ))
                                             )}
@@ -852,7 +852,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 )}
                             </div>
                             <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
-                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Map className="text-blue-400"/> Ajuda</h3>
+                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Map className={theme.accent}/> Ajuda</h3>
                                 <Button theme={theme} onClick={() => { localStorage.removeItem(`tour_seen_${user.username}`); restartTour(); }} variant="secondary" className="w-full" icon={Icons.Refresh}>Reiniciar Tour Guiado</Button>
                             </div>
                         </div>
@@ -862,14 +862,14 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 {/* TAB: NOVIDADES */}
                 {activeTab === 'novidades' && (
                     <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
-                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><Icons.Bell className="text-blue-400"/> Central de Novidades</h3>
+                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><Icons.Bell className={theme.accent}/> Central de Novidades</h3>
                         <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
                             {data.newsletter && data.newsletter.length > 0 ? (
                                 data.newsletter.sort((a:any,b:any) => b.timestamp - a.timestamp).map((news:any) => (
-                                    <div key={news.id} className="bg-white/5 p-5 rounded-2xl border border-white/5 relative hover:bg-white/10 transition-colors">
+                                    <div key={news.id} className={`${theme.inner} p-5 rounded-2xl border ${theme.divider} relative hover:bg-opacity-80 transition-colors`}>
                                         <div className="flex justify-between items-start mb-3">
-                                            <h4 className="font-bold text-lg text-white">{news.title}</h4>
-                                            <span className="text-xs opacity-50 bg-black/30 px-3 py-1 rounded-full border border-white/5">{news.date}</span>
+                                            <h4 className={`font-bold text-lg ${theme.text}`}>{news.title}</h4>
+                                            <span className={`text-xs opacity-50 ${theme.inner} px-3 py-1 rounded-full border ${theme.divider}`}>{news.date}</span>
                                         </div>
                                         {news.image && (
                                             <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
@@ -892,11 +892,11 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 {/* TAB: USUARIOS */}
                 {activeTab === 'usuarios' && (isAdmin || isSuperAdmin) && (
                     <div className={`${theme.card} p-8 rounded-3xl border ${theme.border} shadow-xl text-center space-y-6`}>
-                        <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto text-blue-400">
+                        <div className={`w-20 h-20 ${theme.accent} bg-opacity-20 rounded-full flex items-center justify-center mx-auto`}>
                             <Icons.Users size={40} />
                         </div>
                         <div className="space-y-2">
-                            <h3 className="font-bold text-2xl text-white">Gerenciamento de Usuários</h3>
+                            <h3 className={`font-bold text-2xl ${theme.text}`}>Gerenciamento de Usuários</h3>
                             <p className="text-sm opacity-60 max-w-md mx-auto">
                                 Como administrador, você pode criar novos usuários, alterar permissões e gerenciar quem tem acesso ao sistema.
                             </p>
@@ -908,7 +908,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 variant="primary" 
                                 size="lg" 
                                 icon={Icons.Users}
-                                className="px-10 shadow-lg shadow-blue-500/20"
+                                className="px-10 shadow-lg"
                             >
                                 Abrir Painel de Usuários
                             </Button>
@@ -920,13 +920,13 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 {activeTab === 'admin' && isSuperAdmin && (
                     <div className="space-y-8">
                         {/* BLOQUEIO DE SISTEMAS */}
-                        <div className={`${theme.card} rounded-3xl border border-red-500/20 overflow-hidden`}>
-                            <div className="bg-red-500/10 p-5 border-b border-red-500/20 flex items-center justify-between">
+                        <div className={`${theme.card} rounded-3xl border ${theme.divider} overflow-hidden`}>
+                            <div className={`${theme.inner} p-5 border-b ${theme.divider} flex items-center justify-between`}>
                                 <div className="flex items-center gap-3">
-                                    <div className="bg-red-500/20 p-2.5 rounded-xl text-red-400"><Icons.Lock size={22} /></div>
+                                    <div className={`${theme.accent} bg-opacity-20 p-2.5 rounded-xl`}><Icons.Lock size={22} /></div>
                                     <div>
-                                        <h3 className="font-bold text-red-100">Gestão de Acessos</h3>
-                                        <p className="text-xs text-red-300/60">Controle de validade e bloqueios manuais.</p>
+                                        <h3 className={`font-bold ${theme.text}`}>Gestão de Acessos</h3>
+                                        <p className="text-xs opacity-60">Controle de validade e bloqueios manuais.</p>
                                     </div>
                                 </div>
                             </div>
@@ -945,14 +945,14 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                     }
                                     const isBlocked = blocks[sys];
                                     return (
-                                        <div key={sys} className="bg-black/30 p-4 rounded-2xl border border-white/5 flex flex-col gap-4">
+                                        <div key={sys} className={`${theme.inner} p-4 rounded-2xl border ${theme.divider} flex flex-col gap-4`}>
                                             <div className="flex justify-between items-start">
-                                                <h4 className="font-bold text-white">{sys}</h4>
+                                                <h4 className={`font-bold ${theme.text}`}>{sys}</h4>
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${isBlocked || isExpired ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                                                     {isBlocked ? 'Bloqueado' : (isExpired ? 'Expirado' : 'Ativo')}
                                                 </span>
                                             </div>
-                                            <div className="text-xs opacity-50">Expira em: <span className="text-white opacity-100">{statusText}</span></div>
+                                            <div className="text-xs opacity-50">Expira em: <span className={`${theme.text} opacity-100`}>{statusText}</span></div>
                                             <div className="flex gap-2">
                                                 <IconButton theme={theme} onClick={() => setEditExpModal({ isOpen: true, system: sys, currentExpiration: expiresAtStr })} icon={Icons.Calendar} className="flex-1" />
                                                 <button 
@@ -997,11 +997,11 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* PUBLICAR AVISO */}
                             <div className={`${theme.card} p-6 rounded-3xl border ${theme.border} shadow-lg`}>
-                                <h4 className="font-bold text-white uppercase tracking-widest text-xs mb-4 flex items-center gap-2"><Icons.Message size={14}/> Publicar Novidade</h4>
+                                <h4 className={`font-bold ${theme.text} uppercase tracking-widest text-xs mb-4 flex items-center gap-2`}><Icons.Message size={14}/> Publicar Novidade</h4>
                                 <div className="space-y-3">
                                     <Input theme={theme} placeholder="Título" value={newsTitle} onChange={(e:any)=>setNewsTitle(e.target.value)} />
                                     <textarea 
-                                        className="w-full h-32 bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 outline-none focus:border-white/30 resize-none text-sm"
+                                        className={`w-full h-32 ${theme.inner} border ${theme.divider} ${theme.text} rounded-xl px-4 py-3 outline-none focus:border-opacity-50 resize-none text-sm`}
                                         placeholder="Conteúdo... (Cole imagens aqui)"
                                         value={newsContent}
                                         onChange={(e)=>setNewsContent(e.target.value)}
@@ -1010,7 +1010,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                     <div className="flex justify-between items-center">
                                         <div className="flex gap-2">
                                             <input type="file" id="news-img-upload" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                            <label htmlFor="news-img-upload" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg cursor-pointer text-white transition-colors"><Icons.Image size={18}/></label>
+                                            <label htmlFor="news-img-upload" className={`p-2 ${theme.inner} hover:bg-opacity-80 rounded-lg cursor-pointer ${theme.text} transition-colors`}><Icons.Image size={18}/></label>
                                             {newsImage && <button onClick={() => setNewsImage(null)} className="p-2 bg-red-500/20 text-red-400 rounded-lg"><Icons.X size={18}/></button>}
                                         </div>
                                         <Button theme={theme} onClick={handlePostNews} size="sm" variant="success" icon={Icons.Send}>Postar</Button>
@@ -1021,9 +1021,9 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                             {/* TIMELINE DE ACESSOS */}
                             <div className={`${theme.card} p-6 rounded-3xl border ${theme.border} shadow-lg`}>
                                 <div className="flex items-center justify-between mb-4">
-                                    <h4 className="font-bold text-white uppercase tracking-widest text-xs flex items-center gap-2"><Icons.Shield size={14}/> Segurança</h4>
-                                    <div className="flex bg-black/40 p-1 rounded-lg">
-                                        <button onClick={()=>setSecurityTab('timeline')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='timeline' ? 'bg-white/10 text-white shadow-sm' : 'opacity-40'}`}>Timeline</button>
+                                    <h4 className={`font-bold ${theme.text} uppercase tracking-widest text-xs flex items-center gap-2`}><Icons.Shield size={14}/> Segurança</h4>
+                                    <div className={`flex ${theme.inner} p-1 rounded-lg`}>
+                                        <button onClick={()=>setSecurityTab('timeline')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='timeline' ? `${theme.primary} text-white shadow-sm` : 'opacity-40'}`}>Timeline</button>
                                         <button onClick={()=>setSecurityTab('blocked')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='blocked' ? 'bg-red-500/20 text-red-400 shadow-sm' : 'opacity-40'}`}>Bloqueados</button>
                                     </div>
                                 </div>
@@ -1036,11 +1036,11 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                             <div 
                                                 key={log.id} 
                                                 onClick={() => setSelectedLog(log)}
-                                                className={`p-3 rounded-xl border flex justify-between items-center group cursor-pointer transition-all hover:scale-[1.01] ${isTrusted ? 'bg-green-500/10 border-green-500/20' : 'bg-white/5 border-white/5'}`}
+                                                className={`p-3 rounded-xl border flex justify-between items-center group cursor-pointer transition-all hover:scale-[1.01] ${isTrusted ? 'bg-green-500/10 border-green-500/20' : `${theme.inner} border-transparent`}`}
                                             >
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`text-xs font-bold truncate ${isTrusted ? 'text-green-400' : 'text-white'}`}>{log.username}</span>
+                                                        <span className={`text-xs font-bold truncate ${isTrusted ? 'text-green-400' : theme.text}`}>{log.username}</span>
                                                         {isTrusted && <Icons.Check size={10} className="text-green-500" />}
                                                         <span className="text-[9px] opacity-30">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                                     </div>
@@ -1061,7 +1061,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                             </div>
                                         );
                                     }) : blockedList.map((dev:any) => (
-                                        <div key={dev.id} className="bg-red-900/10 p-3 rounded-xl border border-red-500/20 flex justify-between items-center">
+                                        <div key={dev.id} className={`bg-red-900/10 p-3 rounded-xl border border-red-500/20 flex justify-between items-center`}>
                                             <div className="text-[10px] font-mono text-red-200">{dev.id.substring(0,16)}...</div>
                                             <IconButton theme={theme} onClick={()=>unbanDevice(dev.id)} icon={Icons.Check} size={14} variant="success" />
                                         </div>
@@ -1078,11 +1078,11 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                         {/* History Controls */}
                         <div className={`${theme.card} p-4 rounded-2xl border ${theme.border} flex flex-wrap items-center justify-between gap-4`}>
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+                                <div className={`p-2 ${theme.accent} bg-opacity-10 rounded-xl`}>
                                     <Icons.Calendar size={20}/>
                                 </div>
                                 <div>
-                                    <h3 className="font-bold">Logs de Atividade</h3>
+                                    <h3 className={`font-bold ${theme.text}`}>Logs de Atividade</h3>
                                     <p className="text-[10px] opacity-50 uppercase tracking-wider">Histórico dos últimos 30 dias</p>
                                 </div>
                             </div>
@@ -1092,7 +1092,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                     type="date" 
                                     value={historyDate}
                                     onChange={(e) => setHistoryDate(e.target.value)}
-                                    className="bg-black/20 border border-white/10 text-white rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500/50"
+                                    className={`w-full ${theme.inner} border ${theme.divider} ${theme.text} rounded-xl px-4 py-2 text-sm outline-none focus:border-opacity-50`}
                                 />
                             </div>
                         </div>
@@ -1145,23 +1145,23 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                 onClick={() => hasActions && setExpandedSessions(prev => isExpanded ? prev.filter(id => id !== group.id) : [...prev, group.id])}
                                                 className={`p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors ${!hasActions ? 'cursor-default' : ''}`}
                                             >
-                                                <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-400">
+                                                <div className={`w-10 h-10 rounded-full ${theme.accent} bg-opacity-10 border border-current flex items-center justify-center text-xs font-bold`}>
                                                     {formatTime(mainLog.timestamp)}
                                                 </div>
                                                 
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-sm text-blue-400">{mainLog.username}</span>
+                                                        <span className={`font-bold text-sm ${theme.accent}`}>{mainLog.username}</span>
                                                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter ${group.login ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/10 text-blue-400'}`}>
                                                             Sessão Iniciada
                                                         </span>
                                                         {hasActions && (
-                                                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
+                                                            <span className={`text-[10px] ${theme.accent} bg-opacity-20 px-1.5 py-0.5 rounded-full`}>
                                                                 {group.actions.length} {group.actions.length === 1 ? 'ação' : 'ações'}
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-sm opacity-70 mt-0.5">
+                                                    <p className={`text-sm ${theme.text} opacity-70 mt-0.5`}>
                                                         {group.login ? group.login.details : `Atividade registrada às ${formatTime(mainLog.timestamp)}`}
                                                     </p>
                                                 </div>
@@ -1175,17 +1175,17 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
 
                                             {/* Expanded Actions */}
                                             {isExpanded && hasActions && (
-                                                <div className="border-t border-white/5 bg-black/20 divide-y divide-white/5">
+                                                <div className={`border-t ${theme.divider} ${theme.inner} bg-opacity-50 divide-y ${theme.divider}`}>
                                                     {group.actions.sort((a:any, b:any) => b.timestamp - a.timestamp).map((action: any, aIdx: number) => (
-                                                        <div key={aIdx} className="p-3 pl-16 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                                                        <div key={aIdx} className="p-3 pl-16 flex items-center gap-4 hover:bg-opacity-10 transition-colors">
                                                             <div className="text-[10px] font-mono opacity-40 w-12">
                                                                 {formatTime(action.timestamp)}
                                                             </div>
                                                             <div className="flex-1">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="text-[10px] font-bold uppercase text-white/40 tracking-widest">{action.action}</span>
+                                                                    <span className={`text-[10px] font-bold uppercase ${theme.text} opacity-40 tracking-widest`}>{action.action}</span>
                                                                 </div>
-                                                                <p className="text-xs opacity-60">{action.details}</p>
+                                                                <p className={`text-xs ${theme.text} opacity-60`}>{action.details}</p>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -1219,58 +1219,58 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
             {selectedLog && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className={`${theme.card} w-full max-w-md rounded-3xl border ${theme.border} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
-                        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                        <div className={`p-6 border-b ${theme.divider} flex justify-between items-center`}>
                             <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-xl ${trustedDevices[selectedLog.deviceId] ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
                                     <Icons.Smartphone size={20} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-white">Detalhes do Acesso</h3>
+                                    <h3 className={`font-bold ${theme.text}`}>Detalhes do Acesso</h3>
                                     <p className="text-[10px] opacity-50 uppercase tracking-widest">{selectedLog.username}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                            <button onClick={() => setSelectedLog(null)} className={`p-2 hover:${theme.inner} rounded-full transition-colors`}>
                                 <Icons.X size={20} />
                             </button>
                         </div>
                         
                         <div className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className={`${theme.inner} p-3 rounded-xl border ${theme.divider}`}>
                                     <div className="text-[9px] opacity-40 uppercase font-bold mb-1">Navegador</div>
-                                    <div className="text-xs font-bold">{selectedLog.deviceInfo?.browser || 'N/A'}</div>
+                                    <div className={`text-xs font-bold ${theme.text}`}>{selectedLog.deviceInfo?.browser || 'N/A'}</div>
                                 </div>
-                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className={`${theme.inner} p-3 rounded-xl border ${theme.divider}`}>
                                     <div className="text-[9px] opacity-40 uppercase font-bold mb-1">Sistema</div>
-                                    <div className="text-xs font-bold">{selectedLog.deviceInfo?.os || 'N/A'}</div>
+                                    <div className={`text-xs font-bold ${theme.text}`}>{selectedLog.deviceInfo?.os || 'N/A'}</div>
                                 </div>
-                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className={`${theme.inner} p-3 rounded-xl border ${theme.divider}`}>
                                     <div className="text-[9px] opacity-40 uppercase font-bold mb-1">Dispositivo</div>
-                                    <div className="text-xs font-bold">{selectedLog.deviceInfo?.device || 'N/A'}</div>
+                                    <div className={`text-xs font-bold ${theme.text}`}>{selectedLog.deviceInfo?.device || 'N/A'}</div>
                                 </div>
-                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className={`${theme.inner} p-3 rounded-xl border ${theme.divider}`}>
                                     <div className="text-[9px] opacity-40 uppercase font-bold mb-1">IP</div>
-                                    <div className="text-xs font-bold">{selectedLog.ip || 'N/A'}</div>
+                                    <div className={`text-xs font-bold ${theme.text}`}>{selectedLog.ip || 'N/A'}</div>
                                 </div>
                             </div>
 
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                            <div className={`${theme.inner} bg-opacity-50 p-4 rounded-xl border ${theme.divider}`}>
                                 <div className="text-[9px] opacity-40 uppercase font-bold mb-2">Localização</div>
-                                <div className="text-[10px] opacity-80 break-words leading-relaxed">
+                                <div className={`text-[10px] ${theme.text} opacity-80 break-words leading-relaxed`}>
                                     {selectedLog.location?.display_name || selectedLog.location?.exact_address || 'Não identificada'}
                                 </div>
                             </div>
 
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                            <div className={`${theme.inner} bg-opacity-50 p-4 rounded-xl border ${theme.divider}`}>
                                 <div className="text-[9px] opacity-40 uppercase font-bold mb-2">Hardware / GPU</div>
-                                <div className="text-[10px] opacity-80 break-words leading-relaxed">
+                                <div className={`text-[10px] ${theme.text} opacity-80 break-words leading-relaxed`}>
                                     {selectedLog.deviceInfo?.gpu || 'Não identificado'}
                                 </div>
                             </div>
 
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                            <div className={`${theme.inner} bg-opacity-50 p-4 rounded-xl border ${theme.divider}`}>
                                 <div className="text-[9px] opacity-40 uppercase font-bold mb-2">ID do Aparelho</div>
-                                <div className="text-[10px] font-mono opacity-80 break-all">
+                                <div className={`text-[10px] font-mono ${theme.text} opacity-80 break-all`}>
                                     {selectedLog.deviceId || 'N/A'}
                                 </div>
                             </div>

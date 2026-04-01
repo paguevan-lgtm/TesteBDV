@@ -92,33 +92,33 @@ export const EditExpirationModal: React.FC<EditExpirationModalProps> = ({
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className={`${theme.card} w-full max-w-md rounded-2xl border ${theme.border} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
-                <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                    <h3 className="text-lg font-bold flex items-center gap-2">
-                        <Icons.Calendar className="text-blue-400" />
+                <div className={`p-6 border-b ${theme.divider} flex justify-between items-center`}>
+                    <h3 className={`text-lg font-bold flex items-center gap-2 ${theme.text}`}>
+                        <Icons.Calendar className={theme.accent} />
                         Editar Vencimento: {system}
                     </h3>
-                    <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+                    <button onClick={onClose} className={`${theme.text} opacity-50 hover:opacity-100 transition-colors`}>
                         <Icons.X size={20} />
                     </button>
                 </div>
 
                 <div className="p-6 space-y-6">
-                    <div className="flex bg-black/20 p-1 rounded-lg">
+                    <div className={`flex ${theme.inner} p-1 rounded-lg`}>
                         <button 
                             onClick={() => setMode('add')}
-                            className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${mode === 'add' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                            className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${mode === 'add' ? `${theme.primary} text-white shadow-lg` : `${theme.text} opacity-50 hover:opacity-100 hover:${theme.inner} hover:bg-opacity-50`}`}
                         >
                             + Dias
                         </button>
                         <button 
                             onClick={() => setMode('remaining')}
-                            className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${mode === 'remaining' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                            className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${mode === 'remaining' ? `${theme.primary} text-white shadow-lg` : `${theme.text} opacity-50 hover:opacity-100 hover:${theme.inner} hover:bg-opacity-50`}`}
                         >
                             Restantes
                         </button>
                         <button 
                             onClick={() => setMode('date')}
-                            className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${mode === 'date' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                            className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${mode === 'date' ? `${theme.primary} text-white shadow-lg` : `${theme.text} opacity-50 hover:opacity-100 hover:${theme.inner} hover:bg-opacity-50`}`}
                         >
                             Data
                         </button>
@@ -126,23 +126,23 @@ export const EditExpirationModal: React.FC<EditExpirationModalProps> = ({
 
                     {mode === 'add' && (
                         <div className="space-y-4">
-                            <label className="block text-sm font-medium text-white/70">Dias a adicionar</label>
+                            <label className={`block text-sm font-medium ${theme.text} opacity-70`}>Dias a adicionar</label>
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setDaysToAdd(prev => prev - 1)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10"><Icons.Minus size={20}/></button>
+                                <button onClick={() => setDaysToAdd(prev => prev - 1)} className={`p-2 ${theme.inner} rounded-lg hover:bg-opacity-80`}><Icons.Minus size={20}/></button>
                                 <input 
                                     type="number" 
                                     value={daysToAdd} 
                                     onChange={(e) => setDaysToAdd(Number(e.target.value))}
-                                    className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-center font-bold text-xl outline-none focus:border-blue-500/50"
+                                    className={`flex-1 ${theme.inner} border ${theme.divider} rounded-xl px-4 py-3 text-center font-bold text-xl outline-none focus:border-opacity-50`}
                                 />
-                                <button onClick={() => setDaysToAdd(prev => prev + 1)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10"><Icons.Plus size={20}/></button>
+                                <button onClick={() => setDaysToAdd(prev => prev + 1)} className={`p-2 ${theme.inner} rounded-lg hover:bg-opacity-80`}><Icons.Plus size={20}/></button>
                             </div>
                             <div className="flex justify-center gap-2 flex-wrap">
                                 {[-30, -7, 7, 30].map(d => (
                                     <button 
                                         key={d}
                                         onClick={() => setDaysToAdd(d)}
-                                        className={`px-3 py-1 rounded-lg text-xs font-bold border ${daysToAdd === d ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-white/5 border-transparent text-white/50 hover:bg-white/10'}`}
+                                        className={`px-3 py-1 rounded-lg text-xs font-bold border ${daysToAdd === d ? `${theme.accent} bg-opacity-20 border-current` : `${theme.inner} border-transparent ${theme.text} opacity-50 hover:opacity-100 hover:bg-opacity-80`}`}
                                     >
                                         {d > 0 ? '+' : ''}{d}d
                                     </button>
@@ -153,23 +153,23 @@ export const EditExpirationModal: React.FC<EditExpirationModalProps> = ({
 
                     {mode === 'remaining' && (
                         <div className="space-y-4">
-                            <label className="block text-sm font-medium text-white/70">Dias restantes para expirar</label>
+                            <label className={`block text-sm font-medium ${theme.text} opacity-70`}>Dias restantes para expirar</label>
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setRemainingDays(prev => Math.max(0, prev - 1))} className="p-2 bg-white/5 rounded-lg hover:bg-white/10"><Icons.Minus size={20}/></button>
+                                <button onClick={() => setRemainingDays(prev => Math.max(0, prev - 1))} className={`p-2 ${theme.inner} rounded-lg hover:bg-opacity-80`}><Icons.Minus size={20}/></button>
                                 <input 
                                     type="number" 
                                     value={remainingDays} 
                                     onChange={(e) => setRemainingDays(Number(e.target.value))}
-                                    className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-center font-bold text-xl outline-none focus:border-blue-500/50"
+                                    className={`flex-1 ${theme.inner} border ${theme.divider} rounded-xl px-4 py-3 text-center font-bold text-xl outline-none focus:border-opacity-50`}
                                 />
-                                <button onClick={() => setRemainingDays(prev => prev + 1)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10"><Icons.Plus size={20}/></button>
+                                <button onClick={() => setRemainingDays(prev => prev + 1)} className={`p-2 ${theme.inner} rounded-lg hover:bg-opacity-80`}><Icons.Plus size={20}/></button>
                             </div>
                             <div className="flex justify-center gap-2">
                                 {[1, 3, 5, 7, 10].map(d => (
                                     <button 
                                         key={d}
                                         onClick={() => setRemainingDays(d)}
-                                        className={`px-3 py-1 rounded-lg text-xs font-bold border ${remainingDays === d ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-white/5 border-transparent text-white/50 hover:bg-white/10'}`}
+                                        className={`px-3 py-1 rounded-lg text-xs font-bold border ${remainingDays === d ? 'bg-amber-500/20 border-amber-500 text-amber-400' : `${theme.inner} border-transparent ${theme.text} opacity-50 hover:opacity-100 hover:bg-opacity-80`}`}
                                     >
                                         {d}d
                                     </button>
@@ -180,19 +180,19 @@ export const EditExpirationModal: React.FC<EditExpirationModalProps> = ({
 
                     {mode === 'date' && (
                         <div className="space-y-4">
-                            <label className="block text-sm font-medium text-white/70">Nova Data de Vencimento</label>
+                            <label className={`block text-sm font-medium ${theme.text} opacity-70`}>Nova Data de Vencimento</label>
                             <input 
                                 type="date" 
                                 value={selectedDate} 
                                 onChange={(e) => setSelectedDate(e.target.value)}
-                                className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500/50 [color-scheme:dark]"
+                                className={`w-full ${theme.inner} border ${theme.divider} rounded-xl px-4 py-3 ${theme.text} outline-none focus:border-opacity-50 [color-scheme:dark]`}
                             />
                         </div>
                     )}
 
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                        <div className="text-xs text-blue-300 font-medium mb-1">Resultado Previsto:</div>
-                        <div className="text-lg font-bold text-blue-100">
+                    <div className={`${theme.accent} bg-opacity-10 border border-current border-opacity-20 rounded-xl p-4`}>
+                        <div className={`text-xs ${theme.accent} font-medium mb-1`}>Resultado Previsto:</div>
+                        <div className={`text-lg font-bold ${theme.text}`}>
                             {(() => {
                                 let d = new Date();
                                 if (mode === 'add') {
@@ -220,11 +220,11 @@ export const EditExpirationModal: React.FC<EditExpirationModalProps> = ({
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-white/10 flex gap-3">
-                    <Button onClick={onClose} theme={{ primary: 'bg-white/5 hover:bg-white/10 text-white' }} className="flex-1">
+                <div className={`p-6 border-t ${theme.divider} flex gap-3`}>
+                    <Button onClick={onClose} theme={theme} variant="secondary" className="flex-1">
                         Cancelar
                     </Button>
-                    <Button onClick={handleSave} theme={{ primary: 'bg-blue-600 hover:bg-blue-500 text-white' }} className="flex-1">
+                    <Button onClick={handleSave} theme={theme} variant="primary" className="flex-1">
                         Salvar Alterações
                     </Button>
                 </div>
