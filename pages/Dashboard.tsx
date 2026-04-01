@@ -360,7 +360,7 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                         <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Icons.Dollar size={80}/></div>
                         <div className="relative z-10">
                             <div className="text-green-400 font-bold uppercase tracking-wider text-xs mb-1">Estimativa Hoje</div>
-                            <div className="text-4xl font-black">R$ {stats.revenue},00</div>
+                            <div className="text-4xl font-black">R$ {stats.revenue.toFixed(2).replace('.', ',')}</div>
                             <div className="text-xs opacity-50 mt-2 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Calculado sobre viagens</div>
                         </div>
                     </div>
