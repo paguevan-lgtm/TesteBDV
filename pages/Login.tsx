@@ -92,7 +92,8 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
             return;
         }
 
-        startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
+        // Obriga a localização
+        executeGeoLogin();
     };
 
     const executeGeoLogin = () => {

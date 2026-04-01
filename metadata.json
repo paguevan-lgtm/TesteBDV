@@ -2,6 +2,7 @@
   "name": "Remix: Bora de Van (SAIR BUG)",
   "description": "Sistema de gestão de transporte, vans e passageiros.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "geolocation"
   ]
 }
