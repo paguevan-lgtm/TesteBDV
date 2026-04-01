@@ -2218,7 +2218,9 @@ const AppContent = () => {
             } else if (collection === 'drivers') {
                 if (!formData.name) return notify("Nome obrigatório", "error");
                 if (!formData.cpf) return notify("CPF obrigatório", "error");
-                await dbOp(formData.id ? 'update' : 'create', 'drivers', formData);
+                // Ensure phones is an array
+                const phones = formData.phones || [{name: formData.name, phone: formData.phone}];
+                await dbOp(formData.id ? 'update' : 'create', 'drivers', {...formData, phones});
             } else if (collection === 'lostFound') {
                 if (!formData.description) return notify("Descrição obrigatória", "error");
                 await dbOp(formData.id ? 'update' : 'create', 'lostFound', formData);
@@ -2922,9 +2924,26 @@ const AppContent = () => {
             return;
         }
         const d = data.drivers.find((x:any) => x.id === trip.driverId);
-        if (!d || !d.phone) return notify("Motorista sem telefone", "error");
+        
+        if (!d) return notify("Motorista não encontrado", "error");
+        
+        const phones = d.phones || (d.phone ? [{name: d.name, phone: d.phone}] : []);
+        
+        if (phones.length === 0) return notify("Motorista sem telefone", "error");
+        
         const msg = `Olá ${d.name}, referente à viagem #${trip.id} do dia ${formatDisplayDate(trip.date)} às ${trip.time}. Valor: R$ ${Number(trip.value).toFixed(2).replace('.', ',')}. Status: ${trip.isPaid ? 'PAGO' : 'PENDENTE'}.`;
-        window.open(`https://wa.me/55${d.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+        
+        if (phones.length === 1) {
+            window.open(`https://wa.me/55${phones[0].phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+        } else {
+            setFormData({
+                phones: phones,
+                onSelect: (phone: string) => {
+                    window.open(`https://wa.me/55${phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+                }
+            });
+            setModal('phoneSelection');
+        }
     };
 
     const sendPranchetaBillingMessage = (vaga: string, driverName: string, phone: string) => {
@@ -3143,7 +3162,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             }} dbOp={dbOp} setAiModal={setAiModal} user={user} systemContext={systemContext} notify={notify} />}
                             {view === 'passengers' && <Passageiros data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} systemContext={systemContext} />}
                             {view === 'drivers' && <Motoristas data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setFormData={setFormData} setModal={setModal} del={del} notify={notify} />}
-                            {view === 'trips' && <Viagens data={{...data, pricePerPassenger}} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} openEditTrip={openEditTrip} updateTripStatus={updateTripStatus} del={del} duplicateTrip={duplicateTrip} notify={notify} systemContext={systemContext} pranchetaValue={pranchetaValue} />}
+                            {view === 'trips' && <Viagens data={{...data, pricePerPassenger}} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} setFormData={setFormData} openEditTrip={openEditTrip} updateTripStatus={updateTripStatus} del={del} duplicateTrip={duplicateTrip} notify={notify} systemContext={systemContext} pranchetaValue={pranchetaValue} />}
                             {view === 'appointments' && <Agendamentos data={data} theme={theme} setFormData={setFormData} setModal={setModal} dbOp={dbOp} setSuggestedTrip={setSuggestedTrip} setEditingTripId={setEditingTripId} notify={notify} requestConfirm={requestConfirm} systemContext={systemContext} />}
                             {view === 'folgasGanchos' && <FolgasGanchos data={data} theme={theme} dbOp={dbOp} notify={notify} effectiveFolgas={effectiveFolgas} swaps={swaps} ganchos={ganchos} systemContext={systemContext} user={user} folgasDisabled={folgasDisabled} saturdayFolgaDisabled={saturdayFolgaDisabled} customDefaultFolgas={customDefaultFolgas} saturdayRotation={saturdayRotation} tableWeekId={tableWeekId} />}
 

@@ -246,10 +246,31 @@ export const GlobalModals = ({
                                 </div>
                             )}
                             <Input themeKey={themeKey} label="Nome" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <Input themeKey={themeKey} label="Telefone" type="tel" value={formData.phone||''} onChange={(e:any)=>setFormData({...formData, phone:e.target.value})} />
-                                <Input themeKey={themeKey} label="CPF" type="text" mask="cpf" placeholder="000.000.000-00" value={formData.cpf||''} onChange={(e:any)=>setFormData({...formData, cpf:e.target.value})} />
-                            </div>
+                             <div className="flex flex-col gap-4">
+                                 <div className="flex flex-col gap-2">
+                                     <label className="text-xs font-bold opacity-60 ml-1">Telefones</label>
+                                     {(formData.phones || [{name: '', phone: ''}]).map((p: any, i: number) => (
+                                         <div key={i} className="grid grid-cols-[1fr,1fr,auto] gap-2 items-center">
+                                             <input className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14 w-full" placeholder="Nome" value={p.name} onChange={(e:any) => {
+                                                 const newPhones = [...(formData.phones || [{name: '', phone: ''}])];
+                                                 newPhones[i].name = e.target.value;
+                                                 setFormData({...formData, phones: newPhones});
+                                             }} />
+                                             <input className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14 w-full" placeholder="Telefone" value={p.phone} onChange={(e:any) => {
+                                                 const newPhones = [...(formData.phones || [{name: '', phone: ''}])];
+                                                 newPhones[i].phone = e.target.value;
+                                                 setFormData({...formData, phones: newPhones});
+                                             }} />
+                                             <Button themeKey={themeKey} variant="danger" className="h-14 w-14 p-0 flex items-center justify-center shrink-0" onClick={() => {
+                                                 const newPhones = (formData.phones || [{name: '', phone: ''}]).filter((_:any, index:number) => index !== i);
+                                                 setFormData({...formData, phones: newPhones});
+                                             }}><Icons.Trash size={16}/></Button>
+                                         </div>
+                                     ))}
+                                     <Button themeKey={themeKey} variant="secondary" className="h-14" onClick={() => setFormData({...formData, phones: [...(formData.phones || [{name: '', phone: ''}]), {name: '', phone: ''}]})}><Icons.Plus size={16}/> Adicionar Telefone</Button>
+                                 </div>
+                                 <Input themeKey={themeKey} label="CPF" type="text" mask="cpf" placeholder="000.000.000-00" value={formData.cpf||''} onChange={(e:any)=>setFormData({...formData, cpf:e.target.value})} />
+                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <Input themeKey={themeKey} label="Placa" value={formData.plate||''} onChange={(e:any)=>setFormData({...formData, plate:e.target.value})} />
                                 <Input themeKey={themeKey} label="Capacidade" type="number" value={formData.capacity||''} onChange={(e:any)=>setFormData({...formData, capacity:e.target.value})} />
@@ -313,6 +334,25 @@ export const GlobalModals = ({
                         </>
                     )}
                     
+                    {modal === 'phoneSelection' && (
+                        <div className="space-y-4">
+                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm text-blue-200">
+                                Selecione o telefone para enviar a mensagem:
+                            </div>
+                            <div className="space-y-2">
+                                {(formData.phones || []).map((p: any, i: number) => (
+                                    <Button key={i} theme={theme} onClick={() => {
+                                        formData.onSelect(p.phone);
+                                        setModal(null);
+                                    }}>
+                                        {p.name || 'Telefone'} - {p.phone}
+                                    </Button>
+                                ))}
+                            </div>
+                            <Button theme={theme} variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
+                        </div>
+                    )}
+
                     {modal === 'madrugadaVaga' && (<div className="space-y-6"><div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm text-yellow-200">Digite o número da vaga do motorista para adicionar à tabela da Madrugada.</div><Input theme={theme} label="Número da Vaga" value={tempVagaMadrugada} onChange={(e:any) => setTempVagaMadrugada(e.target.value)} placeholder="Ex: 05" autoFocus /><div className="pt-4"><Button theme={theme} onClick={confirmAddMadrugadaVaga} icon={Icons.Check}>Confirmar Adição</Button></div></div>)}
                     
                     {modal === 'madrugadaBlock' && (<div className="space-y-6"><div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-200">Justifique o por que riscou a vaga <span className="font-bold font-mono">{vagaToBlock}</span> na Madrugada.</div><Input theme={theme} label="Motivo (Opcional)" value={tempJustification} onChange={(e:any) => setTempJustification(e.target.value)} placeholder="Ex: Quebrou, Médico, Folga..." autoFocus /><div className="pt-4 grid grid-cols-2 gap-3"><Button theme={theme} variant="secondary" onClick={()=>setModal(null)}>Cancelar</Button><Button theme={theme} onClick={confirmMadrugadaBlock} icon={Icons.Check} variant="danger">Bloquear</Button></div></div>)}

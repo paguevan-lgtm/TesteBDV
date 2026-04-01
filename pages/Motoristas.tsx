@@ -33,8 +33,14 @@ export default function Motoristas({ data, theme, searchTerm, setFormData, setMo
                         </div>
                         <div className="grid grid-cols-2 gap-3 bg-black/20 p-3 rounded-lg text-xs">
                             <div className="flex flex-col">
-                                <span className="opacity-50 text-[10px] uppercase">Telefone</span>
-                                <span className="font-mono">{item.phone || '-'}</span>
+                                <span className="opacity-50 text-[10px] uppercase">Telefones</span>
+                                {item.phones && item.phones.length > 0 ? (
+                                    item.phones.map((p:any, i:number) => (
+                                        <span key={i} className="font-mono">{p.name}: {p.phone}</span>
+                                    ))
+                                ) : (
+                                    <span className="font-mono">{item.phone || '-'}</span>
+                                )}
                             </div>
                             <div className="flex flex-col">
                                 <span className="opacity-50 text-[10px] uppercase">CNH Validade</span>

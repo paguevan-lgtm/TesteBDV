@@ -43,7 +43,7 @@ const TempTripTimer = ({ date, time }: any) => {
     return <span>{timeLeft}</span>;
 };
 
-export default function Viagens({ data, theme, searchTerm, openEditTrip, updateTripStatus, del, duplicateTrip, notify, systemContext, pranchetaValue }: any) {
+export default function Viagens({ data, theme, searchTerm, setSearchTerm, setModal, setFormData, openEditTrip, updateTripStatus, del, duplicateTrip, notify, systemContext, pranchetaValue }: any) {
     const [historyDate, setHistoryDate] = useState(new Date());
     const [expandedDays, setExpandedDays] = useState<any>({});
 
@@ -103,9 +103,26 @@ export default function Viagens({ data, theme, searchTerm, openEditTrip, updateT
         } else {
             p = data.passengers.filter((x:any) => (trip.passengerIds||[]).includes(x.realId || x.id));
         }
-        if (!d || !d.phone) return notify('Motorista sem telefone.', 'error');
-        const msg = encodeURIComponent(generateWhatsappMessage(trip.id, p, d.name, trip.time, trip.date));
-        window.open(`https://wa.me/55${d.phone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+        
+        if (!d) return notify('Motorista não encontrado.', 'error');
+        
+        const phones = d.phones || (d.phone ? [{name: d.name, phone: d.phone}] : []);
+        
+        if (phones.length === 0) return notify('Motorista sem telefone.', 'error');
+        
+        if (phones.length === 1) {
+            const msg = encodeURIComponent(generateWhatsappMessage(trip.id, p, d.name, trip.time, trip.date));
+            window.open(`https://wa.me/55${phones[0].phone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+        } else {
+            setFormData({
+                phones: phones,
+                onSelect: (phone: string) => {
+                    const msg = encodeURIComponent(generateWhatsappMessage(trip.id, p, d.name, trip.time, trip.date));
+                    window.open(`https://wa.me/55${phone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+                }
+            });
+            setModal('phoneSelection');
+        }
     };
 
     const generateMonthSummary = () => {
