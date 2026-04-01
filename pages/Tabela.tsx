@@ -116,8 +116,8 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
         const { active, over } = event;
         setActiveId(null);
         if (active.id !== over?.id) {
-            const oldIndex = lousaOrder.findIndex((i: any) => i.id === active.id);
-            const newIndex = lousaOrder.findIndex((i: any) => i.id === over.id);
+            const oldIndex = lousaOrder.findIndex((i: any) => i.uid === active.id);
+            const newIndex = lousaOrder.findIndex((i: any) => i.uid === over.id);
             const newList = arrayMove(lousaOrder, oldIndex, newIndex);
             dbOp('update', 'lousa_order', newList);
         }
@@ -675,7 +675,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                             modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
                         >
                             <SortableContext 
-                                items={lousaOrder.map((i: any) => i.id)}
+                                items={lousaOrder.map((i: any) => i.uid)}
                                 strategy={verticalListSortingStrategy}
                             >
                                 {lousaOrder && lousaOrder.map((item:any, index:number) => { 
@@ -713,7 +713,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                     }
                                     
                                     return ( 
-                                        <SortableRow key={item.id || `lousa-${item.vaga}-${index}`} id={item.id} disabled={isLocked}>
+                                        <SortableRow key={item.uid || `lousa-${item.vaga}-${index}`} id={item.uid} disabled={isLocked}>
                                             <div 
                                                 className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border opacity-100 ${isExpired ? 'bg-red-900/10 border-red-500/20' : (isRiscado ? 'bg-red-900/10 border-red-500/20' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20' : 'bg-black/20 border-white/5'))}`}
                                             > 
@@ -760,25 +760,25 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                                     {!isNullItem && (
                                                         <>
                                                             <button 
-                                                                onClick={() => handleLousaAction(item.uid, isBaixou ? 'cancelar_baixar' : 'baixar', vaga)} 
+                                                                onClick={(e) => { e.stopPropagation(); handleLousaAction(item.uid, isBaixou ? 'cancelar_baixar' : 'baixar', vaga); }} 
                                                                 className={`p-1.5 rounded transition-all hide-on-print flex-shrink-0 opacity-100 ${isBaixou ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-500/20 text-orange-400 border-orange-500/20 hover:bg-orange-500/30'}`}
                                                                 title={isBaixou ? "Cancelar Baixar" : "Baixar vaga"}
                                                             > 
                                                                 {isBaixou ? <Icons.X size={12}/> : <Icons.ArrowDown size={12}/>} 
                                                             </button>
                                                             {!isBaixou && !isRiscado && (
-                                                                <button onClick={() => handleLousaAction(item.uid, 'duplicate', vaga)} className="p-1.5 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 hide-on-print flex-shrink-0 opacity-100" title="Duplicar vaga"> <Icons.Plus size={12}/> </button>
+                                                                <button onClick={(e) => { e.stopPropagation(); handleLousaAction(item.uid, 'duplicate', vaga); }} className="p-1.5 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 hide-on-print flex-shrink-0 opacity-100" title="Duplicar vaga"> <Icons.Plus size={12}/> </button>
                                                             )}
                                                         </>
                                                     )} 
                                                     
                                                     {!isBaixou && (
-                                                        <button onClick={() => handleLousaAction(item.uid, 'riscar', vaga)} className={`p-1.5 bg-white/5 rounded hover:bg-white/10 text-white hide-on-print flex-shrink-0 opacity-100 ${isRiscado ? 'text-red-500 bg-red-500/10' : ''}`} title="Riscar"> 
+                                                        <button onClick={(e) => { e.stopPropagation(); handleLousaAction(item.uid, 'riscar', vaga); }} className={`p-1.5 bg-white/5 rounded hover:bg-white/10 text-white hide-on-print flex-shrink-0 opacity-100 ${isRiscado ? 'text-red-500 bg-red-500/10' : ''}`} title="Riscar"> 
                                                             <Icons.Slash size={12}/> 
                                                         </button> 
                                                     )}
                                                     
-                                                    <button onClick={() => handleLousaAction(item.uid, 'remove', vaga)} className="p-1.5 bg-white/5 rounded hover:bg-red-500/20 text-red-400 hide-on-print flex-shrink-0 opacity-100" title="Remover"><Icons.X size={12}/></button> 
+                                                    <button onClick={(e) => { e.stopPropagation(); handleLousaAction(item.uid, 'remove', vaga); }} className="p-1.5 bg-white/5 rounded hover:bg-red-500/20 text-red-400 hide-on-print flex-shrink-0 opacity-100" title="Remover"><Icons.X size={12}/></button> 
                                                 </div> 
                                             </div> 
                                         </SortableRow>
@@ -786,30 +786,6 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                 })} 
                                 {(!lousaOrder || lousaOrder.length === 0) && <div className="text-center opacity-100 text-sm py-10">Lousa vazia</div>} 
                             </SortableContext>
-                            <DragOverlay>
-                                {activeId && tableTab === 'lousa' ? (
-                                    <div className="h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border bg-yellow-500/20 border-yellow-500/50 shadow-2xl opacity-90 scale-105 pointer-events-none">
-                                        {(() => {
-                                            const item = lousaOrder.find((i: any) => i.id === activeId);
-                                            if (!item) return null;
-                                            const vaga = item.vaga;
-                                            const isNullItem = item.isNull;
-                                            const driver = isNullItem ? { name: "🚫 HORÁRIO VAGO" } : (spList.find((d:any) => d.vaga === vaga) || { name: '' });
-                                            return (
-                                                <>
-                                                    <div className="w-[40px] h-[40px] rounded bg-white/10 flex items-center justify-center flex-shrink-0">
-                                                        <span className="font-mono text-sm font-bold">{!isNullItem && vaga}</span>
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <span className="font-bold text-base">{driver.name}</span>
-                                                    </div>
-                                                    <Icons.GripVertical size={18} className="text-yellow-400" />
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                ) : null}
-                            </DragOverlay>
                         </DndContext>
                     </div>
                 </div>
@@ -970,28 +946,6 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                             ); 
                         }) : <div className="text-center opacity-100 text-sm py-4">Nenhuma vaga na madrugada para esta data.</div>} 
                             </SortableContext>
-                            <DragOverlay>
-                                {activeId && tableTab === 'madrugada' ? (() => {
-                                    const parts = activeId.split('-');
-                                    const vagaId = parts[1];
-                                    const isNull = vagaId === 'NULL';
-                                    const driverName = isNull ? "🚫 HORÁRIO VAGO" : (madrugadaOrderedList.find((d: any) => d.vaga === vagaId)?.name || "Arrastando...");
-                                    
-                                    return (
-                                        <div className="bg-indigo-600 p-4 rounded-lg shadow-2xl border border-indigo-400 flex items-center justify-between gap-4 opacity-90 scale-105 pointer-events-none">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-white/20 rounded flex items-center justify-center font-mono font-bold text-lg">
-                                                    {isNull ? '🚫' : vagaId}
-                                                </div>
-                                                <span className="font-bold text-lg">
-                                                    {driverName}
-                                                </span>
-                                            </div>
-                                            <Icons.GripVertical size={18} />
-                                        </div>
-                                    );
-                                })() : null}
-                            </DragOverlay>
                         </DndContext>
                     </div>
                 </div>
