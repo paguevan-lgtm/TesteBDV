@@ -107,21 +107,30 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const { latitude, longitude, accuracy } = pos.coords;
-                setShowGeoPrompt(false); 
-                startEntrySequence({ latitude, longitude, accuracy });
-            },
-            (err) => {
-                console.warn("Geo bloqueada:", err);
-                setLoading(false);
-                setGeoStatus('');
-                notify("Não foi possível obter localização. Verifique as permissões do navegador.", "error");
-                setShowGeoPrompt(true);
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
+        const tryGeo = (highAccuracy: boolean) => {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const { latitude, longitude, accuracy } = pos.coords;
+                    setShowGeoPrompt(false); 
+                    startEntrySequence({ latitude, longitude, accuracy });
+                },
+                (err) => {
+                    if (highAccuracy) {
+                        // Fallback para precisão menor se a alta falhar (comum no iOS)
+                        tryGeo(false);
+                    } else {
+                        console.warn("Geo bloqueada:", err);
+                        setLoading(false);
+                        setGeoStatus('');
+                        notify("Não foi possível obter localização. Verifique as permissões do navegador.", "error");
+                        setShowGeoPrompt(true);
+                    }
+                },
+                { enableHighAccuracy: highAccuracy, timeout: 10000, maximumAge: 0 }
+            );
+        };
+
+        tryGeo(true);
     };
 
     const startEntrySequence = (coords: any) => {
