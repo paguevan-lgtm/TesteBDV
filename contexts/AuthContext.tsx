@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, PropsWithChildren } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, PropsWithChildren, useRef } from 'react';
 import { USERS_DB } from '../constants';
 import { db, auth } from '../firebase';
 import { getDeviceFingerprint, parseUserAgent, getHardwareInfo, getTodayDate } from '../utils';
@@ -18,7 +18,10 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (u: string, p: string, coords: any) => Promise<boolean>;
-    logout: () => void;
+    logout: (reason?: string) => void;
+    updateActivity: () => void;
+    logoutReason: string | null;
+    setLogoutReason: (reason: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,6 +29,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [logoutReason, setLogoutReason] = useState<string | null>(null);
 
     // 1. Leitura inicial do token e Auth Anônima
     useEffect(() => {
@@ -37,11 +41,20 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                     const parsed = JSON.parse(savedSession);
                     const now = Date.now();
                     
-                    // Verifica expiração (12 horas)
-                    if (parsed.expiry && now < parsed.expiry) {
+                    // Verifica expiração absoluta (17 horas)
+                    const absoluteExpiry = parsed.loginTime + (17 * 60 * 60 * 1000);
+                    // Verifica inatividade (6 horas)
+                    const inactivityExpiry = parsed.lastActivity + (6 * 60 * 60 * 1000);
+
+                    if (now < absoluteExpiry && now < inactivityExpiry) {
                         setUser(parsed.user);
                     } else {
                         localStorage.removeItem('nexflow_session');
+                        if (now >= absoluteExpiry) {
+                            setLogoutReason("Login encerrado por motivos de segurança, se ainda esta usando o sistema considere logar novamente");
+                        } else {
+                            setLogoutReason("Pelo motivo de ficar 6 horas sem nenhuma modificação no site, seu login foi encerrado por inatividade.");
+                        }
                     }
                 }
             } catch (error) {
@@ -70,10 +83,55 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     }, []);
 
     // 3. Função de Logout
-    const logout = () => {
+    const logout = (reason?: string) => {
         localStorage.removeItem('nexflow_session');
         setUser(null);
+        if (reason) setLogoutReason(reason);
     };
+
+    const lastUpdateRef = useRef<number>(0);
+
+    // Função para atualizar atividade
+    const updateActivity = () => {
+        if (!user) return;
+        const now = Date.now();
+        // Throttle para atualizar no máximo a cada 30 segundos
+        if (now - lastUpdateRef.current < 30000) return;
+        
+        lastUpdateRef.current = now;
+        const savedSession = localStorage.getItem('nexflow_session');
+        if (savedSession) {
+            const parsed = JSON.parse(savedSession);
+            parsed.lastActivity = now;
+            localStorage.setItem('nexflow_session', JSON.stringify(parsed));
+        }
+    };
+
+    // Timer de verificação forçada (sem refresh)
+    useEffect(() => {
+        if (!user) return;
+
+        const checkInterval = setInterval(() => {
+            const savedSession = localStorage.getItem('nexflow_session');
+            if (savedSession) {
+                const parsed = JSON.parse(savedSession);
+                const now = Date.now();
+                
+                const absoluteExpiry = parsed.loginTime + (17 * 60 * 60 * 1000);
+                const inactivityExpiry = parsed.lastActivity + (6 * 60 * 60 * 1000);
+
+                if (now >= absoluteExpiry) {
+                    clearInterval(checkInterval);
+                    logout("Login encerrado por motivos de segurança, se ainda esta usando o sistema considere logar novamente");
+                } else if (now >= inactivityExpiry) {
+                    clearInterval(checkInterval);
+                    logout("Pelo motivo de ficar 6 horas sem nenhuma modificação no site, seu login foi encerrado por inatividade.");
+                }
+            }
+        }, 30000); // Checa a cada 30 segundos
+
+        return () => clearInterval(checkInterval);
+    }, [user]);
 
     // NOVO: Listener de Bloqueio em Tempo Real
     useEffect(() => {
@@ -292,8 +350,12 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                 const finalUser = { ...userData, sessionId };
 
                 // Persistência
-                const expiry = Date.now() + 12 * 60 * 60 * 1000; // 12 horas
-                localStorage.setItem('nexflow_session', JSON.stringify({ user: finalUser, expiry }));
+                const now = Date.now();
+                localStorage.setItem('nexflow_session', JSON.stringify({ 
+                    user: finalUser, 
+                    loginTime: now,
+                    lastActivity: now
+                }));
                 
                 // --- LOGGING DE ACESSO COM GEOCODIFICAÇÃO, FINGERPRINT E AUTO-LIMPEZA ---
                 (async () => {
@@ -399,7 +461,16 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ 
+            user, 
+            isAuthenticated: !!user, 
+            isLoading, 
+            login, 
+            logout, 
+            updateActivity, 
+            logoutReason, 
+            setLogoutReason 
+        }}>
             {children}
         </AuthContext.Provider>
     );

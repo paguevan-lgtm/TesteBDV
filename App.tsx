@@ -30,7 +30,31 @@ import { SubscriptionLock } from './components/SubscriptionLock';
 
 // Componente Interno que consome o Contexto
 const AppContent = () => {
-    const { user, isAuthenticated, isLoading, logout } = useAuth();
+    const { user, isAuthenticated, isLoading, logout, updateActivity } = useAuth();
+    
+    // Listeners de Interação Global para Resetar Timer de Inatividade
+    useEffect(() => {
+        if (!user) return;
+
+        const handleInteraction = () => {
+            updateActivity();
+        };
+
+        // Eventos de interação do usuário
+        window.addEventListener('mousemove', handleInteraction, { passive: true });
+        window.addEventListener('mousedown', handleInteraction, { passive: true });
+        window.addEventListener('keydown', handleInteraction, { passive: true });
+        window.addEventListener('touchstart', handleInteraction, { passive: true });
+        window.addEventListener('scroll', handleInteraction, { passive: true });
+
+        return () => {
+            window.removeEventListener('mousemove', handleInteraction);
+            window.removeEventListener('mousedown', handleInteraction);
+            window.removeEventListener('keydown', handleInteraction);
+            window.removeEventListener('touchstart', handleInteraction);
+            window.removeEventListener('scroll', handleInteraction);
+        };
+    }, [user, updateActivity]);
     
     // Estados Globais
     const [isFireConnected, setIsFireConnected] = useState(false);
@@ -655,6 +679,9 @@ const AppContent = () => {
     }, [user]);
 
     const dbOp = async (type: string, node: string, payload: any) => {
+        // Atualiza atividade ao realizar qualquer operação no banco
+        updateActivity();
+
         if(!db) return notify("Sem conexão DB.", "error");
 
         // Função para remover valores undefined recursivamente (Firebase não aceita undefined)

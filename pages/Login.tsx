@@ -7,7 +7,7 @@ import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
-    const { login } = useAuth(); 
+    const { login, logoutReason, setLogoutReason } = useAuth(); 
     
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -16,6 +16,15 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
     
     // Notification State
     const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
+
+    // Efeito para mostrar motivo de logout
+    useEffect(() => {
+        if (logoutReason) {
+            notify(logoutReason, 'info');
+            // Limpa o motivo após mostrar para não repetir se o componente remontar
+            setLogoutReason(null);
+        }
+    }, [logoutReason]);
 
     // Animation States
     const [focusField, setFocusField] = useState<'user' | 'pass' | null>(null);
