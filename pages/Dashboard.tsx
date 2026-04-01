@@ -112,7 +112,13 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
             'Comprometimento e agilidade na nossa central.',
             'Mantenha o sistema atualizado, o controle é tudo.',
             'Foco na missão administrativa!',
-            'Bom trabalho para todos nós aqui no escritório!'
+            'Bom trabalho para todos nós aqui no escritório!',
+            'Eficiência no escritório, tranquilidade na operação.',
+            'Nossa central é o ponto de partida para a excelência.',
+            'A gestão de hoje é o sucesso de amanhã.',
+            'Escritório organizado, frota em movimento.',
+            'Dedicação total na nossa base administrativa.',
+            'O controle da operação está em nossas mãos aqui no escritório.'
         ];
         const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
         
