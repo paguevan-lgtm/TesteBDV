@@ -43,10 +43,20 @@ export const GlobalModals = ({
     showNewsModal,
     latestNews,
     markNewsAsSeen,
-    systemContext
+    systemContext,
+    aiPassengerQueue,
+    aiPassengerIndex
 }: any) => {
 
     const bairrosList = systemContext === 'Mip' ? BAIRROS_MIP : BAIRROS;
+
+    const scrollRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = 0;
+        }
+    }, [aiPassengerIndex]);
 
     if (showNewsModal && latestNews) {
         return (
@@ -125,7 +135,7 @@ export const GlobalModals = ({
                     <h2 className="text-xl font-bold">{modal==='trip'?'Criar Viagem':modal==='passenger'?'Passageiro':modal==='driver'?'Motorista':modal==='lostFound'?'Perdido & Achado':modal==='reschedule'?'Reagendar':modal==='extraCharge'?'Carro Extra':modal==='madrugadaVaga'?'Vaga Madrugada':modal==='madrugadaBlock'?'Bloquear Vaga':modal==='appointment'?'Novo Agendamento':''}</h2>
                     <button onClick={()=>setModal(null)} className="opacity-50"><Icons.X size={24}/></button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6 space-y-5 pb-10">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-5 pb-10">
                     <div className={modal === 'reschedule' || modal === 'driver' ? 'hidden' : ''}>
                         <Input theme={theme} label="Data" type="text" mask="date" placeholder="DD/MM/YYYY" maxLength={10} value={formData.date || getTodayDate()} onChange={(e:any)=>setFormData({...formData, date:e.target.value})} />
                     </div>
@@ -185,7 +195,23 @@ export const GlobalModals = ({
                         </div>
                     )}
 
-                    {modal === 'passenger' && (<><Input themeKey={themeKey} label="Nome" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} speech={true} /><Input themeKey={themeKey} label="Telefone" type="tel" value={formData.phone||''} onChange={(e:any)=>setFormData({...formData, phone:e.target.value})} speech={true} /><Input themeKey={themeKey} label="Endereço" value={formData.address||''} onChange={(e:any)=>setFormData({...formData, address:e.target.value})} speech={true} /><div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Bairro</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.neighborhood} onChange={(e:any)=>setFormData({...formData, neighborhood:e.target.value})}>{bairrosList.map(b=><option key={b} value={b} className="bg-slate-900">{b}</option>)}</select></div><Input themeKey={themeKey} label="Referência" value={formData.reference||''} onChange={(e:any)=>setFormData({...formData, reference:e.target.value})} speech={true} /><div className="grid grid-cols-2 gap-4"><Input themeKey={themeKey} label="Horário (HH:mm)" type="text" mask="time" placeholder="HH:mm" maxLength={5} value={formData.time||''} onChange={(e:any)=>setFormData({...formData, time:e.target.value})} /><Input themeKey={themeKey} label="Qtd Pass" type="number" value={formData.passengerCount||''} onChange={(e:any)=>setFormData({...formData, passengerCount:e.target.value})} /></div><Input themeKey={themeKey} label="Qtd Malas" type="number" value={formData.luggageCount||''} onChange={(e:any)=>setFormData({...formData, luggageCount:e.target.value})} /><div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Pagamento</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.payment} onChange={(e:any)=>setFormData({...formData, payment:e.target.value})}>{['Dinheiro','Pix','Cartão'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}</select></div><div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Status</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>{['Ativo','Inativo'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}</select></div><div className="pt-4"><Button themeKey={themeKey} onClick={()=>save('passengers')}>Salvar</Button></div></>)}
+                    {modal === 'passenger' && (<>
+                        {aiPassengerQueue.length > 0 && (
+                            <div className="bg-amber-500/20 border border-amber-500/30 text-amber-200 p-3 rounded-xl text-center font-bold mb-4">
+                                Cadastro Mágico: {aiPassengerIndex + 1} / {aiPassengerQueue.length} passageiros
+                            </div>
+                        )}
+                        <Input themeKey={themeKey} label="Nome" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} speech={true} />
+                        <Input themeKey={themeKey} label="Telefone" type="tel" value={formData.phone||''} onChange={(e:any)=>setFormData({...formData, phone:e.target.value})} speech={true} />
+                        <Input themeKey={themeKey} label="Endereço" value={formData.address||''} onChange={(e:any)=>setFormData({...formData, address:e.target.value})} speech={true} />
+                        <div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Bairro</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.neighborhood || ''} onChange={(e:any)=>setFormData({...formData, neighborhood:e.target.value})}>{bairrosList.map(b=><option key={b} value={b} className="bg-slate-900">{b}</option>)}</select></div>
+                        <Input themeKey={themeKey} label="Referência" value={formData.reference||''} onChange={(e:any)=>setFormData({...formData, reference:e.target.value})} speech={true} />
+                        <div className="grid grid-cols-2 gap-4"><Input themeKey={themeKey} label="Horário (HH:mm)" type="text" mask="time" placeholder="HH:mm" maxLength={5} value={formData.time||''} onChange={(e:any)=>setFormData({...formData, time:e.target.value})} /><Input themeKey={themeKey} label="Qtd Pass" type="number" value={formData.passengerCount||''} onChange={(e:any)=>setFormData({...formData, passengerCount:e.target.value})} /></div>
+                        <Input themeKey={themeKey} label="Qtd Malas" type="number" value={formData.luggageCount||''} onChange={(e:any)=>setFormData({...formData, luggageCount:e.target.value})} />
+                        <div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Pagamento</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.payment || ''} onChange={(e:any)=>setFormData({...formData, payment:e.target.value})}>{['Dinheiro','Pix','Cartão'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}</select></div>
+                        <div className="flex flex-col gap-1.5"><label className="text-xs font-bold opacity-60 ml-1">Status</label><select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status || ''} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>{['Ativo','Inativo'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}</select></div>
+                        <div className="pt-4"><Button themeKey={themeKey} onClick={()=>save('passengers')}>Salvar</Button></div>
+                    </>)}
                     
                     {modal === 'trip' && (
                         <>
@@ -234,7 +260,7 @@ export const GlobalModals = ({
                             </div>
                             <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-bold opacity-60 ml-1">Status</label>
-                                <select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>
+                                <select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status || ''} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>
                                     {['Ativo','Inativo'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}
                                 </select>
                             </div>
@@ -257,7 +283,7 @@ export const GlobalModals = ({
                             <Input themeKey={themeKey} label="Detalhes Adicionais" value={formData.details||''} onChange={(e:any)=>setFormData({...formData, details:e.target.value})} placeholder="Ex: Banco de trás, lado esquerdo" />
                             <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-bold opacity-60 ml-1">Status</label>
-                                <select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>
+                                <select className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14" value={formData.status || ''} onChange={(e:any)=>setFormData({...formData, status:e.target.value})}>
                                     {['Pendente','Entregue'].map(x=><option key={x} value={x} className="bg-slate-900">{x}</option>)}
                                 </select>
                             </div>

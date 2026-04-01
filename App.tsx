@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { db, auth } from './firebase';
 import { THEMES, INITIAL_SP_LIST, BAIRROS, BAIRROS_MIP, DEFAULT_FOLGAS } from './constants';
-import { Icons, Toast, ConfirmModal, AlertModal, AdminAuthModal, CommandPalette, QuickCalculator } from './components/Shared';
+import { Icons, Toast, PersistentNotifications, ConfirmModal, AlertModal, AdminAuthModal, CommandPalette, QuickCalculator } from './components/Shared';
 import { TourGuide } from './components/Tour';
 import { LoginScreen } from './pages/Login';
-import { getTodayDate, getOperationalDate, getLousaDate, generateUniqueId, callGemini, getAvatarUrl, getBairroIdx, formatDisplayDate, parseDisplayDate, dateAddDays, addMinutes, getWeekNumber } from './utils';
+import { getTodayDate, getOperationalDate, getLousaDate, generateUniqueId, callGemini, getAvatarUrl, getBairroIdx, formatDisplayDate, parseDisplayDate, dateAddDays, addMinutes, getWeekNumber, calculateSimilarity } from './utils';
 
 // Context Auth
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -141,6 +141,18 @@ const AppContent = () => {
 
     const [aiInput, setAiInput] = useState('');
     const [aiLoading, setAiLoading] = useState(false);
+    const [aiPassengerQueue, setAiPassengerQueue] = useState<any[]>([]);
+    const [aiPassengerIndex, setAiPassengerIndex] = useState(0);
+    const aiPassengerQueueRef = useRef(aiPassengerQueue);
+    const aiPassengerIndexRef = useRef(aiPassengerIndex);
+
+    useEffect(() => {
+        aiPassengerQueueRef.current = aiPassengerQueue;
+    }, [aiPassengerQueue]);
+
+    useEffect(() => {
+        aiPassengerIndexRef.current = aiPassengerIndex;
+    }, [aiPassengerIndex]);
     const [isListening, setIsListening] = useState(false);
     const [formData, setFormData] = useState<any>({});
     const [suggestedTrip, setSuggestedTrip] = useState<any>(null);
@@ -328,6 +340,7 @@ const AppContent = () => {
 
     // Notificações e Confirmações
     const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
+    const [persistentNotifications, setPersistentNotifications] = useState<{id: string, message: string}[]>([]);
     const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'danger' });
     const [alertState, setAlertState] = useState<any>({ isOpen: false, title: '', message: '', type: 'warning' });
 
@@ -487,6 +500,14 @@ const AppContent = () => {
     const notify = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
         setNotification({ message: msg, type, visible: true });
         setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 3000);
+    };
+
+    const addPersistentNotification = (msg: string) => {
+        setPersistentNotifications(prev => [...prev, { id: Date.now().toString(), message: msg }]);
+    };
+
+    const removePersistentNotification = (id: string) => {
+        setPersistentNotifications(prev => prev.filter(n => n.id !== id));
     };
 
     const showAlert = (title: string, message: string, type: 'warning' | 'danger' | 'info' = 'warning') => {
@@ -2126,19 +2147,74 @@ const AppContent = () => {
         }
     };
 
+    const advanceQueue = () => {
+        const queue = aiPassengerQueueRef.current;
+        const index = aiPassengerIndexRef.current;
+        if (queue.length > 0 && index < queue.length - 1) {
+            const nextIndex = index + 1;
+            setAiPassengerIndex(nextIndex);
+            setFormData(queue[nextIndex]);
+            notify(`Passageiro ${nextIndex + 1}/${queue.length} carregado!`, "success");
+            return false; // Não fecha o modal
+        } else {
+            setAiPassengerQueue([]);
+            setAiPassengerIndex(0);
+            setModal(null);
+            setFormData({});
+            return true; // Fechou o modal
+        }
+    };
+
     const save = async (collection: string) => {
         try {
             if (collection === 'passengers') {
                 if (!formData.name || !formData.neighborhood) return notify("Nome e Bairro obrigatórios", "error");
                 
-                const id = formData.id || getNextId('passengers');
-                const payload = { ...formData, id, date: formData.date || getTodayDate() };
-                
-                await dbOp(formData.id ? 'update' : 'create', 'passengers', payload);
-                
-                if (!formData.id) { 
-                     autoAssignPassenger(payload);
+                const proceedSave = async (): Promise<boolean> => {
+                    const id = formData.id || getNextId('passengers');
+                    const payload = { ...formData, id, date: formData.date || getTodayDate() };
+                    
+                    await dbOp(formData.id ? 'update' : 'create', 'passengers', payload);
+                    
+                    if (!formData.id) { 
+                         autoAssignPassenger(payload);
+                    }
+
+                    return advanceQueue();
+                };
+
+                // Check for duplicates
+                const existing = data.passengers.find((p: any) => {
+                    const nameSim = calculateSimilarity(p.name, formData.name);
+                    const phoneSim = p.phone && formData.phone ? calculateSimilarity(p.phone, formData.phone) : 0;
+                    return (nameSim > 0.8 || phoneSim > 0.8) && p.id !== formData.id;
+                });
+
+                if (existing) {
+                    if (aiPassengerQueueRef.current.length > 0) {
+                        addPersistentNotification(`Passageiro pulado, ID ${existing.id} é idêntico`);
+                        advanceQueue();
+                        return;
+                    }
+                    setConfirmState({
+                        isOpen: true,
+                        title: "Passageiro similar encontrado",
+                        message: `Verifique o ID ${existing.id} pois estes dados parecem já estar cadastrados. Deseja cadastrar mesmo assim?`,
+                        onConfirm: async () => {
+                            setConfirmState({ ...confirmState, isOpen: false });
+                            await proceedSave();
+                        },
+                        onCancel: () => {
+                            setConfirmState({ ...confirmState, isOpen: false });
+                            advanceQueue();
+                        },
+                        type: 'danger'
+                    });
+                    return;
                 }
+                
+                const closed = await proceedSave();
+                if (!closed) return; // Se não fechou, não continua para o setModal(null) global
             } else if (collection === 'drivers') {
                 if (!formData.name) return notify("Nome obrigatório", "error");
                 if (!formData.cpf) return notify("CPF obrigatório", "error");
@@ -2187,36 +2263,43 @@ const AppContent = () => {
         setAiLoading(true);
         try {
             const bairros = (systemContext === 'Mip' ? BAIRROS_MIP : BAIRROS).join(',');
-            const prompt = `Extraia JSON de: "${aiInput}". Campos: name, phone, neighborhood (de: ${bairros}), address, reference, passengerCount (int, pad 1), luggageCount (int, pad 0), payment ("Dinheiro", "Pix", "Cartão"), time (HH:mm). Se faltar use null.`;
+            const prompt = `Extraia um ARRAY JSON de: "${aiInput}". Cada objeto deve ter os campos: name, phone, neighborhood (de: ${bairros}), address, reference, passengerCount (int, pad 1), luggageCount (int, pad 0), payment ("Dinheiro", "Pix", "Cartão"), time (HH:mm). Se faltar use null.`;
             
             const res = await callGemini(prompt, geminiKey);
             
             if (!res) throw new Error("A IA não retornou nada. Verifique sua chave API.");
 
-            const json = JSON.parse(res.trim());
+            const jsonArray = JSON.parse(res.trim());
+            if (!Array.isArray(jsonArray)) throw new Error("A IA não retornou um array.");
 
-            const validPayments = ['Dinheiro', 'Pix', 'Cartão'];
-            let finalPayment = 'Dinheiro';
-            
-            if (json.payment) {
-                const found = validPayments.find(p => p.toLowerCase() === json.payment.toLowerCase());
-                if (found) finalPayment = found;
-            }
+            const processedPassengers = jsonArray.map((json: any) => {
+                const validPayments = ['Dinheiro', 'Pix', 'Cartão'];
+                let finalPayment = 'Dinheiro';
+                
+                if (json.payment) {
+                    const found = validPayments.find(p => p.toLowerCase() === json.payment.toLowerCase());
+                    if (found) finalPayment = found;
+                }
 
-            let timeToUse = json.time;
-            if (!timeToUse) {
-                const now = new Date();
-                timeToUse = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-            }
+                let timeToUse = json.time;
+                if (!timeToUse) {
+                    const now = new Date();
+                    timeToUse = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+                }
 
-            setFormData({
-                ...json,
-                time: timeToUse,
-                payment: finalPayment, 
-                luggageCount: json.luggageCount || 0, 
-                status: 'Ativo', 
-                date: getTodayDate()
+                return {
+                    ...json,
+                    time: timeToUse,
+                    payment: finalPayment, 
+                    luggageCount: json.luggageCount || 0, 
+                    status: 'Ativo', 
+                    date: getTodayDate()
+                };
             });
+
+            setAiPassengerQueue(processedPassengers);
+            setAiPassengerIndex(0);
+            setFormData(processedPassengers[0]);
             
             setAiModal(false); 
             setModal('passenger'); 
@@ -3172,10 +3255,12 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                     </div>
                  </div>
 
+            <PersistentNotifications notifications={persistentNotifications} onClose={removePersistentNotification} />
             <GlobalModals
                 modal={modal} setModal={setModal}
                 aiModal={aiModal} setAiModal={setAiModal}
                 aiInput={aiInput} setAiInput={setAiInput}
+                aiPassengerQueue={aiPassengerQueue} aiPassengerIndex={aiPassengerIndex}
                 isListening={isListening} toggleMic={toggleMic} handleSmartCreate={handleSmartCreate} aiLoading={aiLoading}
                 theme={theme} themeKey={themeKey}
                 formData={formData} setFormData={setFormData}

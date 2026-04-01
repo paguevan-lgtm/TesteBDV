@@ -412,6 +412,22 @@ export const WeatherWidget = ({ theme, location }: any) => {
     );
 };
 
+export const PersistentNotifications = ({ notifications, onClose }: any) => {
+    if (notifications.length === 0) return null;
+    return (
+        <div className="fixed top-20 left-4 right-4 z-[9999] flex flex-col gap-2">
+            {notifications.map((n: any) => (
+                <div key={n.id} className="bg-amber-600 text-white p-3 rounded-lg flex justify-between items-center shadow-lg animate-bounce-in">
+                    <span className="text-sm font-bold">{n.message}</span>
+                    <button onClick={() => onClose(n.id)} className="ml-2 hover:bg-amber-700 p-1 rounded">
+                        <Icons.X size={16} />
+                    </button>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 export const Toast = ({ message, type, visible }: any) => {
     if (!visible) return null;
     let bg = 'bg-slate-800';
