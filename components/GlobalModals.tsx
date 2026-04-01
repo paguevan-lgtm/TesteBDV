@@ -270,6 +270,26 @@ export const GlobalModals = ({
                         </>
                     )}
                     
+                    {modal === 'rescheduleAll' && (
+                        <div className="space-y-6 anim-fade">
+                            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm text-amber-200 flex items-center gap-3">
+                                <Icons.AlertTriangle size={20} className="shrink-0"/>
+                                <div>
+                                    <span className="font-bold block">Tem certeza?</span>
+                                    Todos os passageiros pendentes serão reagendados.
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Input themeKey={themeKey} label="Horário de origem" type="text" mask="time" placeholder="HH:mm" maxLength={5} value={formData.sourceTime || ''} onChange={(e:any) => setFormData({...formData, sourceTime: e.target.value})} />
+                                <Input themeKey={themeKey} label="Novo horário" type="text" mask="time" placeholder="HH:mm" maxLength={5} value={formData.newTime || ''} onChange={(e:any) => setFormData({...formData, newTime: e.target.value})} />
+                            </div>
+                            <div className="pt-2 grid grid-cols-2 gap-3">
+                                <Button themeKey={themeKey} variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
+                                <Button themeKey={themeKey} onClick={() => { save('rescheduleAll'); }} icon={Icons.Check}>Confirmar</Button>
+                            </div>
+                        </div>
+                    )}
+                    
                     {modal === 'reschedule' && (<div className="space-y-6 anim-fade"><div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm text-blue-200 flex items-center gap-3"><Icons.Clock size={20} className="shrink-0"/><div>Defina o novo horário para <span className="font-bold text-white text-base block">{formData.name}</span></div></div><div className="py-2"><Input theme={theme} label="Novo Horário (HH:mm)" type="text" mask="time" placeholder="HH:mm" maxLength={5} value={formData.time || ''} onChange={(e:any) => setFormData({...formData, time: e.target.value})} autoFocus/></div><div className="pt-2 grid grid-cols-2 gap-3"><Button theme={theme} variant="secondary" onClick={()=>setModal(null)}>Cancelar</Button><Button theme={theme} onClick={() => { save('reschedule'); }} icon={Icons.Check}>Salvar</Button></div></div>)}
                     
                     {modal === 'lostFound' && (

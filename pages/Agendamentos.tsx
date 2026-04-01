@@ -129,7 +129,10 @@ export default function Agendamentos({ data, theme, setFormData, setModal, dbOp,
         <div className="space-y-6">
             <div className={`${theme.card} ${theme.radius} border ${theme.border} p-4 stagger-in d-1`}><div className="flex items-center justify-between mb-4"><h3 className="font-bold text-lg capitalize">{monthName}</h3><div className="flex gap-2"><button onClick={()=>setCalendarDate(new Date(calendarDate.setMonth(calendarDate.getMonth()-1)))} className="p-2 hover:bg-white/10 rounded-lg"><Icons.ChevronLeft size={20}/></button><button onClick={()=>setCalendarDate(new Date(calendarDate.setMonth(calendarDate.getMonth()+1)))} className="p-2 hover:bg-white/10 rounded-lg"><Icons.ChevronRight size={20}/></button></div></div><div className="grid grid-cols-7 gap-1 text-center mb-2 text-xs opacity-60">{['D','S','T','Q','Q','S','S'].map((d,i)=><div key={`${d}-${i}`}>{d}</div>)}</div><div className="grid grid-cols-7 gap-1">{dayElements}</div><div className="mt-4 pt-3 border-t border-white/10 flex gap-2"><button onClick={copyDaySummary} className="w-full bg-white/5 hover:bg-white/10 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors"><Icons.Copy size={16}/> 📋 Copiar Resumo do Dia</button></div></div>
             <div className="space-y-4 stagger-in d-2">
-                <h3 className="font-bold text-lg border-b border-white/10 pb-2">📅 {formatDisplayDate(selectedDate)}</h3>
+                <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                    <h3 className="font-bold text-lg">📅 {formatDisplayDate(selectedDate)}</h3>
+                    <Button theme={theme} onClick={() => { setFormData({ date: selectedDate }); setModal('rescheduleAll'); }} variant="secondary" className="text-xs py-1 px-2">Reagendar todos</Button>
+                </div>
                 
                 <div className="space-y-3">
                     <h4 className="text-xs font-bold uppercase tracking-widest opacity-60 pl-1 text-yellow-400">Pendentes</h4>

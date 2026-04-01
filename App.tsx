@@ -2230,6 +2230,21 @@ const AppContent = () => {
                     date: formData.date 
                 });
                 notify("Reagendado com sucesso!", "success");
+            } else if (collection === 'rescheduleAll') {
+                if (!formData.sourceTime || !formData.newTime) return notify("Preencha o horário de origem e o novo horário!", "error");
+                
+                const passengersToReschedule = data.passengers.filter((p: any) => p.time === formData.sourceTime && p.date === formData.date);
+                
+                if (passengersToReschedule.length === 0) return notify("Nenhum passageiro encontrado para este horário!", "error");
+                
+                for (const p of passengersToReschedule) {
+                    await dbOp('update', 'passengers', {
+                        id: p.id,
+                        time: formData.newTime
+                    });
+                }
+                notify(`${passengersToReschedule.length} passageiros reagendados!`, "success");
+                setModal(null);
             } else if (collection === 'appointments') {
                 if (!formData.passengerInput || !formData.date || !formData.time) return notify("Preencha todos os campos!", "error");
                 const identifiers = formData.passengerInput.split(',').map((s: string) => s.trim()).filter(Boolean);
