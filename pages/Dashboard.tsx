@@ -99,14 +99,20 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
         const name = user?.username?.split(' ')[0] || 'Motorista';
         
         const phrases = [
-            'Bora acelerar que o dia promete!',
-            'Mantenha o ritmo, força na rodagem.',
-            'Foco na missão.',
-            'Passageiro feliz, van cheia!',
-            'Respeito no trânsito, segurança na estrada.',
-            'Mais um dia, mais uma conquista.',
-            'A estrada é nossa, vamos com cuidado.',
-            'Bom trabalho, motorista!'
+            'Bora acelerar a gestão que o dia promete!',
+            'Organização é a chave para um escritório eficiente.',
+            'Nosso trabalho no escritório garante o sucesso na estrada.',
+            'Foco na gestão, excelência no serviço.',
+            'O escritório é o coração da nossa operação.',
+            'Planejamento impecável, execução perfeita.',
+            'Cada detalhe no sistema faz a diferença no dia a dia.',
+            'Trabalho em equipe no escritório, resultados na rua.',
+            'Gestão inteligente, transporte de qualidade.',
+            'O sucesso da frota começa aqui no escritório.',
+            'Comprometimento e agilidade na nossa central.',
+            'Mantenha o sistema atualizado, o controle é tudo.',
+            'Foco na missão administrativa!',
+            'Bom trabalho para todos nós aqui no escritório!'
         ];
         const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
         
