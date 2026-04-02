@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { Input, Toast, Icons, Button } from '../components/Shared';
+import { Input, Toast, Icons, Button, AlertModal } from '../components/Shared';
 import { useAuth } from '../contexts/AuthContext';
-import { USERS_DB } from '../constants'; 
+import { USERS_DB, THEMES } from '../constants'; 
 import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
-export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
+export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, theme?: any }) => {
     const { login, logoutReason, setLogoutReason } = useAuth(); 
+    const theme = appTheme || THEMES.default;
     
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -16,11 +17,14 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
     
     // Notification State
     const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const [logoutModalMessage, setLogoutModalMessage] = useState('');
 
     // Efeito para mostrar motivo de logout
     useEffect(() => {
         if (logoutReason) {
-            notify(logoutReason, 'info');
+            setLogoutModalMessage(logoutReason);
+            setShowLogoutModal(true);
             // Limpa o motivo após mostrar para não repetir se o componente remontar
             setLogoutReason(null);
         }
@@ -155,6 +159,15 @@ export const LoginScreen = ({ onBack }: { onBack?: () => void }) => {
         <div className="fixed inset-0 z-[100] bg-slate-950 text-white overflow-hidden">
             
             <Toast message={notification.message} type={notification.type} visible={notification.visible} />
+
+            <AlertModal 
+                isOpen={showLogoutModal}
+                title="Sessão Encerrada"
+                message={logoutModalMessage}
+                onClose={() => setShowLogoutModal(false)}
+                theme={theme}
+                type="info"
+            />
 
             {/* Immersive Scene */}
             <div className="login-scene">

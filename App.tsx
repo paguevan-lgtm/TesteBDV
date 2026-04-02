@@ -3150,7 +3150,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
     const handleGlobalTouchEnd = (e:any) => { if(view==='table'||menuOpen)return; const dx=e.changedTouches[0].clientX-globalTouchRef.current.x; if(dx>80) setMenuOpen(true); };
 
     if (isLoading) return <div id="app-loader" className="fixed inset-0 bg-black flex items-center justify-center"><div className="text-amber-500 font-bold">CARREGANDO...</div></div>;
-    if (!isAuthenticated) return <LoginScreen />;
+    if (!isAuthenticated) return <LoginScreen theme={theme} />;
 
     // ... (Main Render with updated props)
     return (

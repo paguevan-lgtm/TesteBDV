@@ -152,7 +152,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                         // Força logout imediato
                         if (user) {
                             console.warn("Dispositivo banido em tempo real. Deslogando...");
-                            logout();
+                            logout("Este dispositivo foi bloqueado por um administrador por motivos de segurança.");
                         }
                     }
                 });
