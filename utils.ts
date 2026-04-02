@@ -250,9 +250,23 @@ export const handlePrint = async (targetId: string, filename: string, title: str
         let clone: HTMLElement | null = null;
         const itemCount = element.children.length;
         let columns = 1;
-        if (options.forceCols) columns = options.forceCols;
-        else if (options.mode === 'confirmados') columns = itemCount > 12 ? 2 : 1;
-        else if (options.mode === 'lousa') { columns = Math.ceil(itemCount / 12); if (columns < 1) columns = 1; }
+        let itemsToSkip = 0;
+
+        if (options.forceCols) {
+            columns = options.forceCols;
+        } else if (options.mode === 'confirmados') {
+            columns = itemCount > 12 ? 2 : 1;
+        } else if (options.mode === 'lousa') {
+            // Se tiver mais de 24 itens (3 colunas ou mais), ignoramos a primeira coluna (12 itens)
+            // pois os dados são considerados antigos, conforme solicitado.
+            if (itemCount > 24) {
+                itemsToSkip = 12;
+                columns = Math.ceil((itemCount - 12) / 12);
+            } else {
+                columns = Math.ceil(itemCount / 12);
+            }
+            if (columns < 1) columns = 1;
+        }
 
         wrapper = document.createElement('div');
         wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;background-color:#1e293b;color:white;padding:40px;z-index:99999;line-height:1.2;';
@@ -273,6 +287,14 @@ export const handlePrint = async (targetId: string, filename: string, title: str
         }
 
         clone = element.cloneNode(true) as HTMLElement;
+        
+        // Remove os itens que devem ser pulados (primeira coluna da lousa)
+        if (itemsToSkip > 0) {
+            for (let i = 0; i < itemsToSkip; i++) {
+                if (clone.children[0]) clone.children[0].remove();
+            }
+        }
+
         clone.style.width = '100%';
         clone.querySelectorAll('.hide-on-print').forEach(el => el.remove());
         clone.querySelectorAll('.overflow-hidden').forEach(el => el.classList.remove('overflow-hidden'));

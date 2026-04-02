@@ -24,7 +24,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
 
-const SortableRow = ({ id, children, disabled }: any) => {
+const SortableRow = ({ id, children, disabled, hideGrip }: any) => {
     const {
         attributes,
         listeners,
@@ -55,7 +55,7 @@ const SortableRow = ({ id, children, disabled }: any) => {
             {...listeners}
         >
             {children}
-            {!disabled && (
+            {!disabled && !hideGrip && (
                 <div className="absolute right-0 top-1/2 -translate-y-1/2 -mr-6 p-1 opacity-40 md:opacity-0 md:group-hover:opacity-40 transition-opacity z-20 flex items-center justify-center">
                     <Icons.GripVertical size={14}/>
                 </div>
@@ -723,7 +723,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                     }
                                     
                                     return ( 
-                                        <SortableRow key={item.uid || `lousa-${item.vaga}-${index}`} id={item.uid} disabled={isLocked}>
+                                        <SortableRow key={item.uid || `lousa-${item.vaga}-${index}`} id={item.uid} disabled={isLocked} hideGrip={true}>
                                             <div 
                                                 className={`h-[48px] flex items-center justify-between gap-4 px-3 rounded-lg border opacity-100 ${isExpired ? 'bg-red-900/10 border-red-500/20' : (isRiscado ? 'bg-red-900/10 border-red-500/20' : (isBaixou ? 'bg-orange-900/10 border-orange-500/20' : 'bg-black/20 border-white/5'))}`}
                                             > 
