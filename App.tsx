@@ -432,7 +432,7 @@ const AppContent = () => {
             title: "Dashboard: Sua Central de Comando", 
             content: "Acompanhe o crescimento do seu negócio com estatísticas em tempo real. Veja quantos passageiros estão ativos, o total de viagens realizadas e até uma estimativa do seu faturamento diário!", 
             target: "#dashboard-stats", 
-            placement: 'bottom' 
+            placement: 'top' 
         },
         { 
             title: "Cadastro Mágico com IA ✨", 
@@ -444,7 +444,7 @@ const AppContent = () => {
         { 
             title: "Agendamentos Fixos", 
             content: "Gerencie quem viaja com você todos os dias. Aqui ficam os passageiros com horários definidos que ainda não foram alocados em uma viagem específica.", 
-            target: "#menu-btn-appointments, #menu-btn-appointments-mobile", 
+            target: "#menu-btn-appointments-mobile, #menu-btn-appointments", 
             view: "appointments", 
             placement: 'right' 
         },
@@ -458,7 +458,7 @@ const AppContent = () => {
         { 
             title: "Tabela e Lousa Digital", 
             content: "O coração da operação! Controle a fila de motoristas, quem já baixou, quem está confirmado e quem está na espera (Lousa). Tudo atualiza instantaneamente para todos os usuários.", 
-            target: "#menu-btn-table, #menu-btn-table-mobile", 
+            target: "#menu-btn-table-mobile, #menu-btn-table", 
             view: "table", 
             placement: 'right' 
         },
@@ -471,7 +471,7 @@ const AppContent = () => {
         { 
             title: "Gestão Ativa de Viagens", 
             content: "Crie viagens, aloque motoristas e envie a lista de passageiros formatada diretamente para o WhatsApp do motorista com apenas um clique!", 
-            target: "#menu-btn-trips, #menu-btn-trips-mobile", 
+            target: "#menu-btn-trips-mobile, #menu-btn-trips", 
             view: "trips", 
             placement: 'right' 
         },
@@ -484,7 +484,7 @@ const AppContent = () => {
         { 
             title: "Financeiro & Cobrança 💰", 
             content: "Mantenha o caixa em dia. O sistema identifica quem já pagou e quem está pendente. Você pode cobrar os inadimplentes no WhatsApp de forma profissional e rápida.", 
-            target: "#menu-btn-billing, #menu-btn-billing-mobile", 
+            target: "#menu-btn-billing-mobile, #menu-btn-billing", 
             view: "billing", 
             placement: 'right' 
         },
@@ -498,7 +498,7 @@ const AppContent = () => {
         { 
             title: "Folgas e Ganchos 🗓️", 
             content: "Controle a escala dos motoristas. Marque folgas programadas ou aplique 'ganchos' (suspensões temporárias) para manter a ordem na fila da lousa digital.", 
-            target: "#menu-btn-folgasGanchos, #menu-btn-folgasGanchos-mobile", 
+            target: "#menu-btn-folgasGanchos-mobile, #menu-btn-folgasGanchos", 
             view: "folgasGanchos", 
             placement: 'right' 
         },

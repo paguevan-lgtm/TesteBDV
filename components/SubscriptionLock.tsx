@@ -674,7 +674,7 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
                     <div className="space-y-4">
                         <div className="bg-slate-700/50 p-4 rounded-xl border border-white/5">
                             <div className="text-sm text-slate-400">Valor da Assinatura ({systemContext})</div>
-                            <div className="text-3xl font-bold text-green-400">R$ 10,00</div>
+                            <div className="text-3xl font-bold text-green-400">R$ 300,00</div>
                             <div className="text-xs text-slate-500 mt-1">Libera o sistema {systemContext} por 30 dias</div>
                             <div className="mt-3 pt-3 border-t border-white/5 text-[10px] text-amber-400 uppercase font-bold tracking-wider">
                                 Próximo vencimento após pagar: {(() => {
@@ -729,7 +729,7 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
                     </div>
                 ) : (
                     selectedMethod === 'pix' ? (
-                        <PixPayment amount={1000} userId={user.uid} systemContext={systemContext} email={subscriptionEmail} />
+                        <PixPayment amount={30000} userId={user.uid} systemContext={systemContext} email={subscriptionEmail} />
                     ) : null
                 )}
             </div>

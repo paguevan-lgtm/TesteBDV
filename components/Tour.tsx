@@ -53,14 +53,17 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
 
             if (target) {
                 const rect = target.getBoundingClientRect();
-                const padding = 4; // Reduced padding for better fit
+                const style = window.getComputedStyle(target);
+                const borderRadius = style.borderRadius || '8px';
+                const padding = isMobile ? 2 : 4; 
                 const currentTargetRect = {
                     top: rect.top - padding,
                     left: rect.left - padding,
                     width: rect.width + (padding * 2),
                     height: rect.height + (padding * 2),
                     bottom: rect.bottom + padding,
-                    right: rect.right + padding
+                    right: rect.right + padding,
+                    borderRadius
                 };
                 setTargetRect(currentTargetRect);
 
@@ -74,8 +77,17 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                 const spaceAbove = currentTargetRect.top;
                 const spaceBelow = window.innerHeight - currentTargetRect.bottom;
 
-                // On mobile, we prefer the side with more space, but with a minimum gap
-                if (step.placement === 'top' || (isMobile && spaceAbove > spaceBelow)) {
+                // On mobile, if target is very large, place tooltip at bottom or top fixed
+                const isLargeTarget = isMobile && currentTargetRect.height > window.innerHeight * 0.4;
+
+                if (isLargeTarget) {
+                    if (spaceBelow > spaceAbove) {
+                        tooltipTop = window.innerHeight - currentTooltipHeight - 20;
+                    } else {
+                        tooltipTop = 20;
+                    }
+                    arrow = null;
+                } else if (step.placement === 'top' || (isMobile && spaceAbove > spaceBelow)) {
                     tooltipTop = currentTargetRect.top - currentTooltipHeight - 20;
                     arrow = { bottom: -8, left: '50%', transform: 'translateX(-50%) rotate(225deg)' };
                     
@@ -140,7 +152,22 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                     
                     if (isSidebarItem) {
                         // Special scroll for sidebar items to ensure they are visible and have space for tooltip
-                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                        const container = document.getElementById('sidebar-scroll-container');
+                        if (container) {
+                            const containerRect = container.getBoundingClientRect();
+                            const targetRect = target.getBoundingClientRect();
+                            const relativeTop = targetRect.top - containerRect.top;
+                            const targetCenterInContainer = relativeTop + (targetRect.height / 2);
+                            const containerCenter = containerRect.height / 2;
+                            
+                            // Only scroll if it's not already centered (with a small tolerance)
+                            if (Math.abs(targetCenterInContainer - containerCenter) > 20) {
+                                container.scrollTo({
+                                    top: container.scrollTop + relativeTop - (containerRect.height / 2) + (targetRect.height / 2),
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }
                     } else if (rect.top < 100 || rect.bottom > window.innerHeight - 100) {
                         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
@@ -205,7 +232,7 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                             left: targetRect.left,
                             width: targetRect.width,
                             height: targetRect.height,
-                            borderRadius: '8px',
+                            borderRadius: targetRect.borderRadius || '8px',
                             border: '2px solid #f59e0b',
                             boxShadow: '0 0 15px rgba(245, 158, 11, 0.5)',
                             pointerEvents: 'none',
