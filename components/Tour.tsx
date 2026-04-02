@@ -7,8 +7,21 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const [arrowPos, setArrowPos] = useState<any>({});
     const [isVisible, setIsVisible] = useState(false);
+    const [tooltipHeight, setTooltipHeight] = useState(250);
     const tooltipRef = useRef<HTMLDivElement>(null);
     
+    useEffect(() => {
+        if (tooltipRef.current) {
+            const observer = new ResizeObserver((entries) => {
+                for (let entry of entries) {
+                    setTooltipHeight(entry.contentRect.height + 48); // + padding
+                }
+            });
+            observer.observe(tooltipRef.current);
+            return () => observer.disconnect();
+        }
+    }, [isVisible]);
+
     useEffect(() => {
         const step = steps[currentStep];
         if (!step) return;
@@ -40,7 +53,7 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
 
             if (target) {
                 const rect = target.getBoundingClientRect();
-                const padding = 8;
+                const padding = 4; // Reduced padding for better fit
                 const currentTargetRect = {
                     top: rect.top - padding,
                     left: rect.left - padding,
@@ -52,8 +65,7 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                 setTargetRect(currentTargetRect);
 
                 const tooltipWidth = Math.min(320, window.innerWidth * 0.9);
-                // Use a larger initial estimate or measure if available
-                const tooltipHeight = tooltipRef.current ? tooltipRef.current.offsetHeight : 250;
+                const currentTooltipHeight = tooltipRef.current ? tooltipRef.current.offsetHeight : tooltipHeight;
 
                 let tooltipTop = 0;
                 let tooltipLeft = rect.left + (rect.width / 2) - (tooltipWidth / 2); 
@@ -64,11 +76,11 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
 
                 // On mobile, we prefer the side with more space, but with a minimum gap
                 if (step.placement === 'top' || (isMobile && spaceAbove > spaceBelow)) {
-                    tooltipTop = currentTargetRect.top - tooltipHeight - 20;
+                    tooltipTop = currentTargetRect.top - currentTooltipHeight - 20;
                     arrow = { bottom: -8, left: '50%', transform: 'translateX(-50%) rotate(225deg)' };
                     
                     // If it doesn't fit on top, flip to bottom
-                    if (tooltipTop < 10 && spaceBelow > tooltipHeight + 40) {
+                    if (tooltipTop < 10 && spaceBelow > currentTooltipHeight + 40) {
                         tooltipTop = currentTargetRect.bottom + 20;
                         arrow = { top: -8, left: '50%', transform: 'translateX(-50%) rotate(45deg)' };
                     }
@@ -81,8 +93,8 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                     arrow = { top: -8, left: '50%', transform: 'translateX(-50%) rotate(45deg)' };
                     
                     // If it doesn't fit on bottom, flip to top
-                    if (tooltipTop + tooltipHeight > window.innerHeight - 10 && spaceAbove > tooltipHeight + 40) {
-                        tooltipTop = currentTargetRect.top - tooltipHeight - 20;
+                    if (tooltipTop + currentTooltipHeight > window.innerHeight - 10 && spaceAbove > currentTooltipHeight + 40) {
+                        tooltipTop = currentTargetRect.top - currentTooltipHeight - 20;
                         arrow = { bottom: -8, left: '50%', transform: 'translateX(-50%) rotate(225deg)' };
                     }
                 }
@@ -93,10 +105,21 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                     tooltipLeft = window.innerWidth - tooltipWidth - 10;
                 }
 
-                // Final vertical safety check - if still out of bounds, center it
-                if (tooltipTop < 10 || tooltipTop + tooltipHeight > window.innerHeight - 10) {
-                    tooltipTop = Math.max(10, (window.innerHeight / 2) - (tooltipHeight / 2));
-                    arrow = null; // Hide arrow if centered
+                // Final vertical safety check - if still out of bounds, center it but avoid target
+                if (tooltipTop < 10 || tooltipTop + currentTooltipHeight > window.innerHeight - 10) {
+                    // If it overlaps the target, try to push it up or down
+                    const targetCenter = currentTargetRect.top + (currentTargetRect.height / 2);
+                    const screenCenter = window.innerHeight / 2;
+                    
+                    if (targetCenter > screenCenter) {
+                        // Target is in bottom half, put tooltip in top half
+                        tooltipTop = Math.max(10, currentTargetRect.top - currentTooltipHeight - 20);
+                        if (tooltipTop < 10) tooltipTop = 10;
+                    } else {
+                        // Target is in top half, put tooltip in bottom half
+                        tooltipTop = Math.min(window.innerHeight - currentTooltipHeight - 10, currentTargetRect.bottom + 20);
+                    }
+                    arrow = null; // Hide arrow if we had to force position
                 }
 
                 // Arrow alignment
@@ -112,8 +135,15 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                 setArrowPos(arrow);
                 setIsVisible(true);
                 
-                if (retryCount === 0 && (rect.top < 50 || rect.bottom > window.innerHeight - 50)) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (retryCount === 0) {
+                    const isSidebarItem = document.getElementById('sidebar-scroll-container')?.contains(target);
+                    
+                    if (isSidebarItem) {
+                        // Special scroll for sidebar items to ensure they are visible and have space for tooltip
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    } else if (rect.top < 100 || rect.bottom > window.innerHeight - 100) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
                 }
 
             } else {
@@ -133,16 +163,27 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
 
         const handleUpdate = () => findTarget();
         const initialTimer = setTimeout(() => handleUpdate(), 100);
+        const secondTimer = setTimeout(() => handleUpdate(), 500); // Second check after sidebar animation
         
         window.addEventListener('resize', handleUpdate);
         window.addEventListener('scroll', handleUpdate, true);
         
+        // Listen for sidebar transitions
+        const sidebar = document.getElementById('mobile-sidebar');
+        if (sidebar) {
+            sidebar.addEventListener('transitionend', handleUpdate);
+        }
+        
         return () => {
             clearTimeout(initialTimer);
+            clearTimeout(secondTimer);
             window.removeEventListener('resize', handleUpdate);
             window.removeEventListener('scroll', handleUpdate, true);
+            if (sidebar) {
+                sidebar.removeEventListener('transitionend', handleUpdate);
+            }
         };
-    }, [currentStep, steps]);
+    }, [currentStep, steps, tooltipHeight]);
 
     const step = steps[currentStep];
     if (!step) return null;
@@ -164,7 +205,7 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
                             left: targetRect.left,
                             width: targetRect.width,
                             height: targetRect.height,
-                            borderRadius: '12px',
+                            borderRadius: '8px',
                             border: '2px solid #f59e0b',
                             boxShadow: '0 0 15px rgba(245, 158, 11, 0.5)',
                             pointerEvents: 'none',
@@ -176,13 +217,15 @@ export const TourGuide = ({ steps, currentStep, onNext, onPrev, onClose, theme }
 
             <div 
                 ref={tooltipRef}
-                className={`tour-tooltip ${theme.card} p-6 rounded-2xl border ${theme.border} shadow-2xl flex flex-col gap-4`}
+                className={`tour-tooltip ${theme.card} p-5 rounded-2xl border ${theme.border} shadow-2xl flex flex-col gap-3`}
                 style={{ 
                     position: 'fixed',
                     top: position.top, 
                     left: position.left,
                     zIndex: 10002,
-                    width: Math.min(320, window.innerWidth * 0.9)
+                    width: Math.min(320, window.innerWidth * 0.9),
+                    maxHeight: '80vh',
+                    overflowY: 'auto'
                 }}
             >
                 {targetRect && arrowPos && <div className={`tour-arrow border-l border-t ${theme.border}`} style={arrowPos}></div>}
