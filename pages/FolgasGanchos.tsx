@@ -38,13 +38,17 @@ function SortableVaga({ vaga, isSwapped, theme }: any) {
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.5 : 1,
-        touchAction: 'none'
-    };
+        touchAction: isDragging ? 'none' : 'auto',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+    } as React.CSSProperties;
 
     return (
         <div
             ref={setNodeRef}
             style={style}
+            onContextMenu={(e) => e.preventDefault()}
             {...attributes}
             {...listeners}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium cursor-grab active:cursor-grabbing select-none transition-colors ${
@@ -338,8 +342,8 @@ export default function FolgasGanchos({ data, theme, dbOp, notify, swaps, gancho
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 250,
-                tolerance: 5,
+                delay: 200,
+                tolerance: 20,
             },
         }),
         useSensor(KeyboardSensor, {

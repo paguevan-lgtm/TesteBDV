@@ -39,14 +39,24 @@ const SortableRow = ({ id, children, disabled }: any) => {
         transition,
         zIndex: isDragging ? 50 : 1,
         opacity: isDragging ? 0.5 : 1,
-        touchAction: 'none'
-    };
+        touchAction: isDragging ? 'none' : 'auto',
+        WebkitTouchCallout: 'none', // Prevents the callout on iOS
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+    } as React.CSSProperties;
 
     return (
-        <div ref={setNodeRef} style={style} className="relative group cursor-grab active:cursor-grabbing select-none" {...attributes} {...listeners}>
+        <div 
+            ref={setNodeRef} 
+            style={style} 
+            className="relative group cursor-grab active:cursor-grabbing select-none" 
+            onContextMenu={(e) => e.preventDefault()}
+            {...attributes} 
+            {...listeners}
+        >
             {children}
             {!disabled && (
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 -mr-6 p-1 opacity-0 group-hover:opacity-40 transition-opacity z-20 flex items-center justify-center">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 -mr-6 p-1 opacity-40 md:opacity-0 md:group-hover:opacity-40 transition-opacity z-20 flex items-center justify-center">
                     <Icons.GripVertical size={14}/>
                 </div>
             )}
@@ -65,8 +75,8 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 250,
-                tolerance: 15,
+                delay: 200,
+                tolerance: 20,
             },
         }),
         useSensor(KeyboardSensor, {

@@ -39,14 +39,18 @@ const SortableMenuItem = ({ item, isMobile, view, setView, setMenuOpen, theme }:
         transition,
         zIndex: isDragging ? 50 : 1,
         opacity: isDragging ? 0.3 : 1,
-        touchAction: 'none'
-    };
+        touchAction: isDragging ? 'none' : 'auto',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+    } as React.CSSProperties;
 
     return (
         <div 
             ref={setNodeRef} 
             style={style}
-            className="relative rounded-xl mb-1 group cursor-grab active:cursor-grabbing"
+            className="relative rounded-xl mb-1 group cursor-grab active:cursor-grabbing select-none"
+            onContextMenu={(e) => e.preventDefault()}
             {...attributes}
             {...listeners}
         >
@@ -97,8 +101,8 @@ export const Sidebar = ({
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 250,
-                tolerance: 5,
+                delay: 200,
+                tolerance: 20,
             },
         }),
         useSensor(KeyboardSensor, {
