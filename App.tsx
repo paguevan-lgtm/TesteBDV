@@ -2541,15 +2541,20 @@ const AppContent = () => {
         let tripDate = formData.date || getTodayDate();
         let tripTime = time;
 
-        // 0. Identificar passageiros já alocados neste dia
-        const occupiedPassIds = new Set();
+        // 0. Identificar passageiros já alocados neste dia e horário
+        const occupiedPassAtTime = new Set();
         const currentTripId = editingTripId ? String(editingTripId) : null;
 
         data.trips.forEach((t:any) => {
             if (String(t.id) === currentTripId) return; // PULA A PRÓPRIA VIAGEM (Comparação String)
             if (t.date === tripDate && t.status !== 'Cancelada') {
                 if (t.passengerIds && Array.isArray(t.passengerIds)) {
-                    t.passengerIds.forEach((pid:string) => occupiedPassIds.add(pid));
+                    t.passengerIds.forEach((pid:string) => {
+                        // Se o horário bater, marca como ocupado
+                        if (t.time === tripTime) {
+                            occupiedPassAtTime.add(pid);
+                        }
+                    });
                 }
             }
         });
@@ -2580,12 +2585,12 @@ const AppContent = () => {
             return normalizeTime(pTime) === normalizeTime(tripTime);
         };
 
-        // 1. Filtrar Candidatos (Livres)
+        // 1. Filtrar Candidatos (Livres no horário)
         let candidates = data.passengers.filter((p:any) => {
             return p.status === 'Ativo' && 
                    p.date === tripDate && 
                    isTimeMatch(p.time) &&
-                   !occupiedPassIds.has(p.realId || p.id);
+                   !occupiedPassAtTime.has(p.realId || p.id);
         });
 
         // NOVA ABORDAGEM: Se não achou livres, procura ocupados no mesmo horário (roubar)
@@ -2677,15 +2682,18 @@ const AppContent = () => {
         const paxCount = parseInt(p.passengerCount || 1, 10);
         const currentCap = suggestedTrip.driver.capacity ? parseInt(suggestedTrip.driver.capacity, 10) : 15;
 
-        // Check overlap
-        const isOccupied = data.trips.some((t:any) => 
+        // Check overlap at same time
+        const isOccupiedSameTime = data.trips.some((t:any) => 
             t.date === suggestedTrip.date && 
             t.status !== 'Cancelada' && 
+            t.time === suggestedTrip.time &&
             t.passengerIds && 
             t.passengerIds.includes(pId)
         );
 
-        if (isOccupied) return notify(`Passageiro já está em outra viagem no dia ${formatDisplayDate(suggestedTrip.date)}!`, "error");
+        if (isOccupiedSameTime) {
+            notify(`Aviso: Passageiro já está em outra viagem neste mesmo horário!`, "info");
+        }
         
         if (suggestedTrip.occupancy + paxCount > currentCap) {
             return notify(`Capacidade excedida! Restam ${currentCap - suggestedTrip.occupancy} lugares.`, "error");
@@ -3296,6 +3304,15 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                             {['passengers', 'drivers', 'trips', 'achados', 'lostFound'].includes(view) && (<div className="flex-1 max-w-md ml-auto md:ml-4"><div className="relative group"><div className="absolute inset-y-0 left-0 pl-3 flex items-center opacity-50"><Icons.Search size={16} /></div><input type="text" placeholder={`Pesquisar...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full ${theme.inner} border ${theme.border} rounded-xl py-2 pl-10 pr-4 text-sm outline-none ${theme.text}`}/>{searchTerm && (<button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-3 flex items-center opacity-50"><Icons.X size={14} /></button>)}</div></div>)}
                         </div>
                         <div className="flex gap-2 ml-2">
+                            {/* Calculator Trigger */}
+                            <button 
+                                onClick={() => setCalcOpen(prev => !prev)} 
+                                className={`p-2.5 rounded-xl ${theme.ghost || 'bg-white/5 hover:bg-white/10 text-white/50'} flex items-center gap-2 text-xs font-bold border ${theme.divider || 'border-white/5'}`} 
+                                title="Calculadora Rápida"
+                            >
+                                <Icons.Calculator size={14} />
+                            </button>
+
                             {/* Command Trigger */}
                             <button onClick={() => setCmdOpen(true)} className={`p-2.5 rounded-xl ${theme.ghost || 'bg-white/5 hover:bg-white/10 text-white/50'} hidden md:flex items-center gap-2 text-xs font-bold border ${theme.divider || 'border-white/5'} mr-2`} title="Command Palette">
                                 <Icons.Command size={14} /> <span className="opacity-50">CTRL+K</span>

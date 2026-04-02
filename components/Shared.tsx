@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'motion/react';
 import { Theme } from '../types';
 import { THEMES, COLORS } from '../constants';
 import { formatDisplayDate, parseDisplayDate } from '../utils';
@@ -641,36 +642,39 @@ export const QuickCalculator = ({ isOpen, onClose, theme }: any) => {
     const btns = ['7','8','9','/','4','5','6','*','1','2','3','-','C','0','=','+'];
 
     return (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div 
-                className={`${theme.card} w-72 p-4 rounded-2xl border ${theme.border} shadow-2xl`}
-            >
-                <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest flex items-center gap-1">
-                        <Icons.Calculator size={12}/> Calculadora
-                    </span>
-                    <button onClick={onClose} className="opacity-40 hover:opacity-100 transition-opacity">
-                        <Icons.X size={16}/>
-                    </button>
-                </div>
-                <div 
-                    className="bg-black/40 rounded-xl p-4 mb-4 text-right text-2xl font-mono overflow-x-auto whitespace-nowrap select-text cursor-default"
-                    onMouseDown={e => e.stopPropagation()}
-                >
-                    {expr || '0'}
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                    {btns.map(b => (
-                        <button 
-                            key={b} 
-                            onClick={() => handleBtn(b)}
-                            className={`p-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-colors ${b === '=' ? 'bg-amber-600 text-white col-span-1' : 'bg-white/5'}`}
-                        >
-                            {b}
-                        </button>
-                    ))}
-                </div>
+        <motion.div 
+            drag
+            dragMomentum={false}
+            initial={{ x: 0, y: 0, opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`fixed top-20 right-4 z-[10000] ${theme.card} w-72 p-4 rounded-2xl border ${theme.border} shadow-2xl cursor-default`}
+            style={{ touchAction: 'none' }}
+        >
+            <div className="flex justify-between items-center mb-2 cursor-move select-none">
+                <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest flex items-center gap-1">
+                    <Icons.Calculator size={12}/> Calculadora
+                </span>
+                <button onClick={onClose} className="opacity-40 hover:opacity-100 transition-opacity p-1">
+                    <Icons.X size={16}/>
+                </button>
             </div>
-        </div>
+            <div 
+                className="bg-black/40 rounded-xl p-4 mb-4 text-right text-2xl font-mono overflow-x-auto whitespace-nowrap select-text cursor-default"
+                onPointerDown={e => e.stopPropagation()}
+            >
+                {expr || '0'}
+            </div>
+            <div className="grid grid-cols-4 gap-2" onPointerDown={e => e.stopPropagation()}>
+                {btns.map(b => (
+                    <button 
+                        key={b} 
+                        onClick={() => handleBtn(b)}
+                        className={`p-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-colors ${b === '=' ? 'bg-amber-600 text-white col-span-1' : 'bg-white/5'}`}
+                    >
+                        {b}
+                    </button>
+                ))}
+            </div>
+        </motion.div>
     );
 };

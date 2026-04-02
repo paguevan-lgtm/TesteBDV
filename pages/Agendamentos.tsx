@@ -119,8 +119,13 @@ export default function Agendamentos({ data, theme, setFormData, setModal, dbOp,
     passOfDay.forEach((p:any) => { 
         const pId = p.realId || p.id;
         const isAssigned = data.trips.some((t:any) => t.date === selectedDate && t.status !== 'Cancelada' && (t.passengerIds||[]).some((id:any) => String(id) === String(pId))); 
+        const isAssignedAtThisTime = data.trips.some((t:any) => t.date === selectedDate && t.status !== 'Cancelada' && t.time === p.time && (t.passengerIds||[]).some((id:any) => String(id) === String(pId)));
+
         if (isAssigned) assigned.push(p); 
-        else if (p.time) pending.push(p); 
+        
+        if (p.time && !isAssignedAtThisTime) {
+            pending.push(p);
+        }
     });
     const pendingPass = pending.sort((a, b) => (a.time||'').localeCompare(b.time||''));
     const assignedPass = assigned.sort((a, b) => (a.time||'').localeCompare(b.time||''));
