@@ -8,21 +8,24 @@ import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// SMTP Configuration
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: parseInt(process.env.SMTP_PORT || '465'),
-    secure: true, // Use SSL
-    auth: {
-        user: process.env.SMTP_USER || 'suporte@boradevan.com.br',
-        pass: process.env.SMTP_PASS || '15744751@Bb',
-    },
-});
-
 // Stripe Configuration
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2023-10-16' as any,
-});
+let stripeClient: Stripe | null = null;
+
+function getStripe(): Stripe {
+    if (!stripeClient) {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (!key) {
+            throw new Error('STRIPE_SECRET_KEY environment variable is required');
+        }
+        stripeClient = new Stripe(key, {
+            apiVersion: '2023-10-16' as any,
+        });
+    }
+    return stripeClient;
+}
+
+// In-memory token store for login
+const loginTokens = new Map<string, { token: string, expires: number }>();
 
 // Helper function for resilient fetch
 async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 3, backoff = 1000): Promise<Response> {
@@ -146,117 +149,144 @@ async function startServer() {
     
     app.use(cors());
 
-    // OTP Routes
-    app.post('/api/request-otp', async (req, res) => {
-        const { username, password } = req.body;
-        if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-
-        try {
-            const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
-            const usersUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/users.json${dbSecret ? `?auth=${dbSecret}` : ''}`;
-            const usersRes = await fetchWithRetry(usersUrl);
-            const users = await usersRes.json();
-
-            if (!users) return res.status(404).json({ error: 'User not found' });
-
-            const userKey = Object.keys(users).find(key => users[key].username.toLowerCase() === username.toLowerCase() && users[key].pass === password);
-            if (!userKey) return res.status(401).json({ error: 'Invalid credentials' });
-
-            const user = users[userKey];
-            if (!user.email) return res.status(400).json({ error: 'User does not have an email registered' });
-
-            // Generate 6-digit OTP
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
-
-            // Store OTP in Firebase
-            const otpUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/temp_otps/${username.toLowerCase()}.json${dbSecret ? `?auth=${dbSecret}` : ''}`;
-            await fetchWithRetry(otpUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ otp, expiresAt })
-            });
-
-            // Mask email
-            const [localPart, domain] = user.email.split('@');
-            const maskedEmail = `${localPart[0]}${'*'.repeat(localPart.length - 2)}${localPart[localPart.length - 1]}@${domain}`;
-
-            // Send Email
-            const mailOptions = {
-                from: '"Bora de Van Suporte" <suporte@boradevan.com.br>',
-                to: user.email,
-                subject: 'Seu Token de Acesso Temporário',
-                html: `
-                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 16px;">
-                        <div style="text-align: center; margin-bottom: 30px;">
-                            <h1 style="color: #f59e0b; margin: 0; font-style: italic; font-weight: 900;">BORA DE VAN</h1>
-                            <p style="color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">Premium Fleet Management</p>
-                        </div>
-                        <div style="background-color: #f8fafc; padding: 30px; border-radius: 12px; text-align: center;">
-                            <h2 style="color: #1e293b; margin-top: 0;">Olá, ${user.username}!</h2>
-                            <p style="color: #475569; font-size: 16px;">Recebemos uma solicitação de acesso à sua conta. Use o token abaixo para completar seu login:</p>
-                            <div style="background-color: #ffffff; border: 2px dashed #cbd5e1; padding: 20px; margin: 25px 0; border-radius: 8px;">
-                                <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #f59e0b;">${otp}</span>
-                            </div>
-                            <p style="color: #94a3b8; font-size: 14px;">Este token expira em 5 minutos.</p>
-                        </div>
-                        <div style="margin-top: 30px; text-align: center; color: #94a3b8; font-size: 12px;">
-                            <p>Se você não solicitou este acesso, por favor ignore este email ou entre em contato com o suporte.</p>
-                            <p>&copy; 2026 Bora de Van. Todos os direitos reservados.</p>
-                        </div>
-                    </div>
-                `
-            };
-
-            await transporter.sendMail(mailOptions);
-
-            res.json({ success: true, maskedEmail });
-        } catch (error: any) {
-            console.error('Error requesting OTP:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    app.post('/api/verify-otp', async (req, res) => {
-        const { username, otp } = req.body;
-        if (!username || !otp) return res.status(400).json({ error: 'Username and OTP required' });
-
-        try {
-            const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
-            const otpUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/temp_otps/${username.toLowerCase()}.json${dbSecret ? `?auth=${dbSecret}` : ''}`;
-            const otpRes = await fetchWithRetry(otpUrl);
-            const storedData = await otpRes.json();
-
-            if (!storedData) return res.status(404).json({ error: 'No OTP found for this user' });
-
-            if (Date.now() > storedData.expiresAt) {
-                return res.status(401).json({ error: 'OTP expired' });
-            }
-
-            if (storedData.otp !== otp) {
-                return res.status(401).json({ error: 'Invalid OTP' });
-            }
-
-            // OTP is valid, delete it
-            await fetchWithRetry(otpUrl, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            res.json({ success: true });
-        } catch (error: any) {
-            console.error('Error verifying OTP:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
     // API Routes
+    app.post('/api/send-login-token', async (req, res) => {
+        try {
+            const { email, name, type } = req.body;
+            if (!email) return res.status(400).json({ error: 'Email is required' });
+
+            // Generate a 6-digit random token
+            const token = Math.floor(100000 + Math.random() * 900000).toString();
+            const expires = Date.now() + 10 * 60 * 1000; // 10 minutes from now
+
+            loginTokens.set(email.toLowerCase(), { token, expires });
+
+            const transporter = nodemailer.createTransport({
+                host: process.env.EMAIL_HOST || 'SMTP.HOSTINGER.COM',
+                port: parseInt(process.env.EMAIL_PORT || '465'),
+                secure: process.env.EMAIL_SECURE === 'true' || process.env.EMAIL_SECURE === 'ssl' || true,
+                auth: {
+                    user: process.env.EMAIL_USER || 'suporte@painel.boradevan.com.br',
+                    pass: process.env.EMAIL_PASS || '15744751@Bb'
+                }
+            });
+
+            const userName = name ? name : 'Usuário';
+            
+            let subject = 'Código de Acesso';
+            let title = 'Código de Acesso';
+            let message = 'Recebemos uma tentativa de login na sua conta. Use o código de verificação abaixo para acessar o sistema:';
+            let footerMessage = 'Se você não solicitou este código, por favor ignore este email ou contate o suporte se achar que sua conta está em risco.';
+
+            if (type === 'new_user') {
+                subject = 'Bem-vindo ao Bora de Van - Validação de E-mail';
+                title = 'Validação de E-mail';
+                message = `Boas-vindas ao Bora de Van! Estamos muito felizes em ter você conosco. Para finalizar o seu cadastro, use o código de verificação abaixo:`;
+                footerMessage = 'Se você não solicitou este cadastro, por favor ignore este email.';
+            } else if (type === 'reset') {
+                subject = 'Bora de Van - Recuperação de Senha';
+                title = 'Recuperação de Senha';
+                message = 'Recebemos uma solicitação para alterar a senha da sua conta. Use o código de verificação abaixo para prosseguir com a mudança de senha:';
+                footerMessage = 'Se você não solicitou a mudança de senha, por favor desconsidere este email. Sua senha permanecerá a mesma e sua conta está segura.';
+            }
+
+            const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #020617; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #f8fafc;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden; max-width: 600px; width: 100%;">
+          <tr>
+            <td style="padding: 40px 30px; text-align: center; border-bottom: 1px solid #1e293b;">
+              <h1 style="margin: 0; color: #f59e0b; font-size: 28px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; font-style: italic;">Bora de Van</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px; text-align: center;">
+              <h2 style="margin: 0 0 20px 0; color: #ffffff; font-size: 20px; font-weight: 600;">Olá, ${userName}!</h2>
+              <p style="margin: 0 0 30px 0; color: #94a3b8; font-size: 16px; line-height: 1.5;">
+                ${message}
+              </p>
+              
+              <!-- Botão/Área de Código Fácil de Copiar -->
+              <div style="margin: 0 auto 30px auto; max-width: 300px;">
+                <div style="background-color: #f59e0b; border-radius: 12px; padding: 20px; text-align: center; cursor: text;">
+                  <span style="margin: 0; color: #0f172a; font-size: 36px; font-weight: 900; letter-spacing: 8px; font-family: monospace; display: block;">${token}</span>
+                </div>
+              </div>
+
+              <p style="margin: 0; color: #ef4444; font-size: 14px; font-weight: 500;">
+                Este código expira em 10 minutos.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px; text-align: center; background-color: #020617; border-top: 1px solid #1e293b;">
+              <p style="margin: 0; color: #64748b; font-size: 12px; line-height: 1.5;">
+                ${footerMessage}
+              </p>
+              <p style="margin: 10px 0 0 0; color: #475569; font-size: 12px;">
+                &copy; ${new Date().getFullYear()} Bora de Van. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+            `;
+
+            await transporter.sendMail({
+                from: `"Bora de Van" <${process.env.EMAIL_USER || 'suporte@painel.boradevan.com.br'}>`,
+                to: email,
+                subject: subject,
+                html: emailHtml
+            });
+
+            res.json({ success: true, message: 'Token sent successfully' });
+        } catch (error: any) {
+            console.error('Error sending token:', error);
+            res.status(500).json({ error: 'Failed to send token' });
+        }
+    });
+
+    app.post('/api/verify-login-token', (req, res) => {
+        const { email, token } = req.body;
+        if (!email || !token) return res.status(400).json({ error: 'Email and token are required' });
+
+        const storedData = loginTokens.get(email.toLowerCase());
+        if (!storedData) {
+            return res.status(400).json({ success: false, error: 'Token inválido ou expirado' });
+        }
+
+        if (Date.now() > storedData.expires) {
+            loginTokens.delete(email.toLowerCase());
+            return res.status(400).json({ success: false, error: 'Token expirado' });
+        }
+
+        if (storedData.token !== token) {
+            return res.status(400).json({ success: false, error: 'Token incorreto' });
+        }
+
+        // Token is valid
+        loginTokens.delete(email.toLowerCase());
+        res.json({ success: true });
+    });
+
     app.post('/api/verify_session', async (req, res) => {
         try {
             const { session_id } = req.body;
             if (!session_id) return res.status(400).json({ error: 'session_id required' });
 
-            const session = await stripe.checkout.sessions.retrieve(session_id);
+            const session = await getStripe().checkout.sessions.retrieve(session_id);
             if (session.payment_status === 'paid') {
                 let userId = session.metadata?.userId;
                 let systemContext = session.metadata?.systemContext;
@@ -357,7 +387,7 @@ async function startServer() {
             
             const priceId = priceMap[systemContext] || 'price_1TCiud2N7Ik4UR6lmc0cL6nK'; // Default to MIP if not found
 
-            const session = await stripe.checkout.sessions.create({
+            const session = await getStripe().checkout.sessions.create({
                 payment_method_types: ['card'],
                 line_items: [
                     {
@@ -429,7 +459,7 @@ async function startServer() {
 
             // Cancel on Stripe
             try {
-                await stripe.subscriptions.cancel(subscriptionId);
+                await getStripe().subscriptions.cancel(subscriptionId);
             } catch (stripeError: any) {
                 console.warn(`Stripe cancellation failed for ${subscriptionId}: ${stripeError.message}. Proceeding to update Firebase.`);
                 // If the error is that the subscription is already cancelled or not found, we can proceed.
@@ -466,7 +496,7 @@ async function startServer() {
 
             // Create Stripe PaymentIntent for PIX
             console.log('Creating PIX PaymentIntent for amount:', amount);
-            const paymentIntent = await stripe.paymentIntents.create({
+            const paymentIntent = await getStripe().paymentIntents.create({
                 amount: amount, // amount in cents
                 currency: 'brl',
                 payment_method_types: ['pix'],
@@ -479,7 +509,7 @@ async function startServer() {
             });
             
             // Confirm the PaymentIntent
-            const confirmedIntent = await stripe.paymentIntents.confirm(
+            const confirmedIntent = await getStripe().paymentIntents.confirm(
                 paymentIntent.id,
                 { payment_method_data: { type: 'pix' } }
             );
@@ -567,7 +597,7 @@ async function startServer() {
                         break;
                     }
                     if (invoice.subscription) {
-                        const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+                        const subscription = await getStripe().subscriptions.retrieve(invoice.subscription as string);
                         const userId = subscription.metadata.userId;
                         const systemContext = subscription.metadata.systemContext;
                         
@@ -618,7 +648,7 @@ async function startServer() {
             }
 
             // Search for active subscriptions for this user and system
-            const subscriptions = await stripe.subscriptions.search({
+            const subscriptions = await getStripe().subscriptions.search({
                 query: `status:'active' AND metadata['userId']:'${userId}' AND metadata['systemContext']:'${systemContext}'`,
                 limit: 1
             });

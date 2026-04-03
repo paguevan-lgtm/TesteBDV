@@ -106,6 +106,9 @@ export interface StaticUser {
     role: string;
     systems: string[];
     createdBy?: string;
+    email?: string;
+    displayName?: string;
+    system?: string;
 }
 
 export const USERS_DB: StaticUser[] = [

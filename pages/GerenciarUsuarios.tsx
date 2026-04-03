@@ -12,6 +12,10 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
     const [showPassword, setShowPassword] = useState(false);
     const [showRoleMenu, setShowRoleMenu] = useState(false);
     const [subsData, setSubsData] = useState<any>({});
+    const [showEmailConfirm, setShowEmailConfirm] = useState(false);
+    const [showTokenModal, setShowTokenModal] = useState(false);
+    const [token, setToken] = useState('');
+    const [isSendingToken, setIsSendingToken] = useState(false);
     const roleMenuRef = useRef<HTMLDivElement>(null);
 
     // Close role menu when clicking outside
@@ -67,7 +71,7 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
         notify(newStatus ? `Sistema bloqueado para ${username}` : `Sistema liberado para ${username}`, newStatus ? "error" : "success");
     };
 
-    const handleSave = () => {
+    const handleSaveInitial = () => {
         if (!formUser.username || !formUser.pass || !formUser.email || !formUser.systems || formUser.systems.length === 0) {
             return notify("Preencha todos os campos obrigatórios (Usuário, E-mail, Senha e pelo menos um Sistema).", "error");
         }
@@ -104,6 +108,56 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
             }
         }
 
+        if (!isEditing) {
+            setShowEmailConfirm(true);
+        } else {
+            handleSaveFinal();
+        }
+    };
+
+    const handleSendToken = async () => {
+        setIsSendingToken(true);
+        try {
+            const response = await fetch('/api/send-login-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: formUser.email, name: formUser.username, type: 'new_user' })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
+            
+            setShowEmailConfirm(false);
+            setShowTokenModal(true);
+            notify('Código enviado para o e-mail.', 'success');
+        } catch (error: any) {
+            notify(error.message, 'error');
+        }
+        setIsSendingToken(false);
+    };
+
+    const handleVerifyTokenAndSave = async () => {
+        if (!token) return notify('Preencha o código', 'error');
+        setIsSendingToken(true);
+        try {
+            const response = await fetch('/api/verify-login-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: formUser.email, token })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Token inválido');
+            
+            setShowTokenModal(false);
+            setToken('');
+            handleSaveFinal();
+        } catch (error: any) {
+            notify(error.message, 'error');
+        }
+        setIsSendingToken(false);
+    };
+
+    const handleSaveFinal = () => {
+        setShowEmailConfirm(false);
         const userToSave = { ...formUser };
         
         if (!isEditing) {
@@ -458,7 +512,7 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                                         </Button>
                                         <Button 
                                             theme={theme} 
-                                            onClick={handleSave} 
+                                            onClick={handleSaveInitial} 
                                             variant="success" 
                                             className="flex-1 !rounded-2xl py-4 shadow-xl shadow-green-500/20"
                                         >
@@ -471,6 +525,123 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                     </div>
                 </div>
             )}
+
+            {/* EMAIL CONFIRMATION MODAL */}
+            <AnimatePresence>
+                {showEmailConfirm && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[500] flex items-center justify-center bg-black/90 p-6 backdrop-blur-sm"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
+
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 text-amber-500">
+                                    <Icons.Mail size={40} />
+                                </div>
+
+                                <h3 className="text-2xl font-black text-white mb-3 uppercase italic">Confirmar E-mail</h3>
+                                <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                                    Por favor, verifique se o e-mail abaixo está correto. Um código de validação será enviado para este endereço.
+                                </p>
+
+                                <div className="w-full bg-slate-950 border border-white/5 rounded-xl p-4 mb-8">
+                                    <p className="text-lg font-mono text-white break-all">{formUser.email}</p>
+                                </div>
+
+                                <div className="flex gap-4 w-full">
+                                    <Button 
+                                        onClick={() => setShowEmailConfirm(false)}
+                                        variant="secondary"
+                                        className="flex-1 !rounded-xl"
+                                    >
+                                        Corrigir
+                                    </Button>
+                                    <Button 
+                                        onClick={handleSendToken}
+                                        disabled={isSendingToken}
+                                        loading={isSendingToken}
+                                        variant="primary"
+                                        theme={{ primary: 'bg-amber-600 text-white' }}
+                                        className="flex-1 !rounded-xl"
+                                    >
+                                        Confirmar
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* TOKEN VALIDATION MODAL */}
+            <AnimatePresence>
+                {showTokenModal && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[500] flex items-center justify-center bg-black/90 p-6 backdrop-blur-sm"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
+
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 text-amber-500">
+                                    <Icons.Key size={40} />
+                                </div>
+
+                                <h3 className="text-2xl font-black text-white mb-3 uppercase italic">Verificar E-mail</h3>
+                                <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                                    Enviamos um código de 6 dígitos para o e-mail <br/><span className="text-amber-400 font-medium">{formUser.email}</span>
+                                </p>
+
+                                <div className="w-full mb-8">
+                                    <Input 
+                                        theme={{text: 'text-white text-center text-3xl tracking-[0.5em] font-mono', radius: 'rounded-xl', border: 'border-white/10'}} 
+                                        value={token} 
+                                        onChange={(e:any) => setToken(e.target.value)} 
+                                        placeholder="000000"
+                                        maxLength={6}
+                                    />
+                                </div>
+
+                                <div className="flex gap-4 w-full">
+                                    <Button 
+                                        onClick={() => { setShowTokenModal(false); setToken(''); }}
+                                        variant="secondary"
+                                        className="flex-1 !rounded-xl"
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button 
+                                        onClick={handleVerifyTokenAndSave}
+                                        disabled={isSendingToken || token.length !== 6}
+                                        loading={isSendingToken}
+                                        variant="primary"
+                                        theme={{ primary: 'bg-amber-600 text-white' }}
+                                        className="flex-1 !rounded-xl"
+                                    >
+                                        Validar
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 }

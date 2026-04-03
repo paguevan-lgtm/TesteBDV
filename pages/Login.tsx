@@ -25,6 +25,18 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
     const [showSystemSelection, setShowSystemSelection] = useState(false);
     const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
 
+    // Token Verification
+    const [showTokenInput, setShowTokenInput] = useState(false);
+    const [token, setToken] = useState('');
+    const [userEmail, setUserEmail] = useState('');
+
+    // Forgot Password State
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [forgotPasswordStep, setForgotPasswordStep] = useState<'input' | 'token' | 'new_password'>('input');
+    const [forgotPasswordInput, setForgotPasswordInput] = useState('');
+    const [forgotPasswordUser, setForgotPasswordUser] = useState<any>(null);
+    const [newPassword, setNewPassword] = useState('');
+
     // Efeito para mostrar motivo de logout
     useEffect(() => {
         if (logoutReason) {
@@ -81,21 +93,177 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 return;
             }
 
+            if (users.length === 1) {
+                const user = users[0];
+                let targetEmail = user.email;
+                if (user.username.toLowerCase() === 'breno') {
+                    targetEmail = 'brenoxt2003@gmail.com';
+                }
+                
+                if (!targetEmail) {
+                    notify('Usuário não possui email cadastrado.', 'error');
+                    setLoading(false);
+                    return;
+                }
+                try {
+                    setUserEmail(targetEmail);
+                    await sendToken(targetEmail, user.displayName || user.username);
+                    setShowTokenInput(true);
+                } catch (e) {
+                    // Error already notified
+                }
+                setLoading(false);
+                return;
+            }
+
             if (users.length > 1) {
                 setMatchingUsers(users);
                 setShowSystemSelection(true);
                 setLoading(false);
                 return;
             }
-
-            // Apenas um usuário encontrado
-            setLoading(false);
-            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
         } catch (error: any) {
             console.error("Erro no pre-login:", error);
             setLoading(false);
             notify(`Erro ao processar login: ${error.message || error}`, "error");
         }
+    };
+
+    const sendToken = async (email: string, name: string, type: 'login' | 'reset' = 'login') => {
+        try {
+            const response = await fetch('/api/send-login-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, name, type })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
+            notify('Código enviado para o seu email.', 'success');
+        } catch (error: any) {
+            notify(error.message, 'error');
+            throw error; 
+        }
+    };
+
+    const verifyToken = async () => {
+        if (!token) return notify('Preencha o código', 'error');
+        setLoading(true);
+        try {
+            const response = await fetch('/api/verify-login-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, token })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Token inválido');
+            
+            setShowTokenInput(false);
+            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, selectedSystem || undefined);
+        } catch (error: any) {
+            notify(error.message, 'error');
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPasswordSearch = async () => {
+        if (!forgotPasswordInput) return notify("Preencha o usuário ou email", "error");
+        setLoading(true);
+        try {
+            let foundUser = null;
+            let targetEmail = '';
+
+            // Search in Firebase
+            if (db) {
+                const snapshot = await db.ref('users').once('value');
+                const users = snapshot.val();
+                if (users) {
+                    for (const key of Object.keys(users)) {
+                        const u = users[key];
+                        // Exclude Breno, Sistema and specific email
+                        if (u.username?.toLowerCase() === 'breno' || u.username?.toLowerCase() === 'sistema' || u.email?.toLowerCase() === 'brenoxt2003@gmail.com') {
+                            continue;
+                        }
+
+                        if (u.username?.toLowerCase() === forgotPasswordInput.toLowerCase() || u.email?.toLowerCase() === forgotPasswordInput.toLowerCase()) {
+                            foundUser = { ...u, uid: key };
+                            targetEmail = u.email;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Search in local fallback if not found
+            if (!foundUser) {
+                for (const u of USERS_DB) {
+                    if (u.username?.toLowerCase() === 'breno' || u.username?.toLowerCase() === 'sistema' || u.email?.toLowerCase() === 'brenoxt2003@gmail.com') {
+                        continue;
+                    }
+                    if (u.username?.toLowerCase() === forgotPasswordInput.toLowerCase() || u.email?.toLowerCase() === forgotPasswordInput.toLowerCase()) {
+                        foundUser = { ...u, uid: 'local_' + u.username };
+                        targetEmail = u.email;
+                        break;
+                    }
+                }
+            }
+
+            if (!foundUser || !targetEmail) {
+                setLoading(false);
+                return notify("Usuário não encontrado ou sem email cadastrado.", "error");
+            }
+
+            setForgotPasswordUser(foundUser);
+            setUserEmail(targetEmail);
+            await sendToken(targetEmail, foundUser.displayName || foundUser.username, 'reset');
+            setForgotPasswordStep('token');
+        } catch (error: any) {
+            console.error("Erro no forgot password:", error);
+            notify(`Erro: ${error.message || error}`, "error");
+        }
+        setLoading(false);
+    };
+
+    const handleForgotPasswordVerify = async () => {
+        if (!token) return notify('Preencha o código', 'error');
+        setLoading(true);
+        try {
+            const response = await fetch('/api/verify-login-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, token })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Token inválido');
+            
+            setForgotPasswordStep('new_password');
+        } catch (error: any) {
+            notify(error.message, 'error');
+        }
+        setLoading(false);
+    };
+
+    const handleForgotPasswordReset = async () => {
+        if (!newPassword || newPassword.length < 6) return notify('A nova senha deve ter pelo menos 6 caracteres', 'error');
+        setLoading(true);
+        try {
+            if (forgotPasswordUser.uid.startsWith('local_')) {
+                notify("Não é possível alterar a senha de um usuário local.", "error");
+                setLoading(false);
+                return;
+            }
+
+            await db.ref(`users/${forgotPasswordUser.uid}`).update({ pass: newPassword });
+            notify("Senha alterada com sucesso! Faça login.", "success");
+            setShowForgotPassword(false);
+            setForgotPasswordStep('input');
+            setForgotPasswordInput('');
+            setNewPassword('');
+            setToken('');
+        } catch (error: any) {
+            console.error("Erro ao alterar senha:", error);
+            notify(`Erro ao alterar senha: ${error.message || error}`, "error");
+        }
+        setLoading(false);
     };
 
     const executeGeoLogin = () => {
@@ -319,6 +487,21 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 >
                     Iniciar Viagem
                 </Button>
+
+                <div className="text-center mt-4">
+                    <button
+                        onClick={() => {
+                            setShowForgotPassword(true);
+                            setForgotPasswordStep('input');
+                            setForgotPasswordInput('');
+                            setNewPassword('');
+                            setToken('');
+                        }}
+                        className="text-xs text-slate-400 hover:text-amber-400 transition-colors uppercase tracking-wider font-semibold"
+                    >
+                        Esqueci minha senha
+                    </button>
+                </div>
             </motion.div>
             
             <p className="text-[9px] text-slate-500 mt-8 relative z-20 font-mono tracking-widest opacity-50">SYSTEM VERSION 4.0.2 // ENCRYPTED SESSION</p>
@@ -351,10 +534,26 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                                 {matchingUsers.map((u) => (
                                     <button
                                         key={u.system}
-                                        onClick={() => {
+                                        onClick={async () => {
                                             setSelectedSystem(u.system);
                                             setShowSystemSelection(false);
-                                            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, u.system);
+                                            let targetEmail = u.email;
+                                            if (u.username.toLowerCase() === 'breno') {
+                                                targetEmail = 'brenoxt2003@gmail.com';
+                                            }
+                                            if (!targetEmail) {
+                                                notify('Usuário não possui email cadastrado.', 'error');
+                                                return;
+                                            }
+                                            setLoading(true);
+                                            try {
+                                                setUserEmail(targetEmail);
+                                                await sendToken(targetEmail, u.displayName || u.username);
+                                                setShowTokenInput(true);
+                                            } catch (e) {
+                                                // Error already notified
+                                            }
+                                            setLoading(false);
                                         }}
                                         className="w-full group relative overflow-hidden p-4 rounded-2xl border border-white/5 bg-white/5 hover:bg-amber-500 hover:border-amber-500 transition-all duration-300 text-left"
                                     >
@@ -376,6 +575,61 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                                 className="mt-8 text-xs text-slate-500 hover:text-white transition-colors uppercase font-bold tracking-widest"
                             >
                                 Cancelar Login
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* TOKEN INPUT MODAL */}
+            <AnimatePresence>
+                {showTokenInput && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 p-6 backdrop-blur-xl"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
+
+                            <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 text-amber-500">
+                                <Icons.Key size={40} />
+                            </div>
+
+                            <h3 className="text-2xl font-black text-white mb-3 uppercase italic">Verificação</h3>
+                            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                                Enviamos um código de 6 dígitos para o seu email ({userEmail}).
+                            </p>
+
+                            <div className="w-full mb-6">
+                                <Input 
+                                    theme={{text: 'text-white text-center text-2xl tracking-[0.5em] font-mono', radius: 'rounded-xl', border: 'border-white/10'}} 
+                                    value={token} 
+                                    onChange={(e:any) => setToken(e.target.value)} 
+                                    placeholder="000000"
+                                    maxLength={6}
+                                />
+                            </div>
+
+                            <Button 
+                                onClick={verifyToken}
+                                disabled={loading || token.length !== 6}
+                                loading={loading}
+                                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 uppercase tracking-widest"
+                            >
+                                {loading ? 'Verificando...' : 'Confirmar Código'}
+                            </Button>
+
+                            <button 
+                                onClick={() => { setShowTokenInput(false); setLoading(false); setToken(''); }}
+                                className="mt-6 text-xs text-slate-500 hover:text-white transition-colors uppercase font-bold tracking-widest"
+                            >
+                                Cancelar
                             </button>
                         </motion.div>
                     </motion.div>
@@ -421,6 +675,128 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                                 className="mt-6 text-xs text-slate-500 hover:text-white transition-colors uppercase font-bold tracking-widest"
                             >
                                 Abortar
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* FORGOT PASSWORD MODAL */}
+            <AnimatePresence>
+                {showForgotPassword && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-950/95 p-6 backdrop-blur-2xl"
+                    >
+                        {/* Background Elements for Forgot Password */}
+                        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
+                            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl"></div>
+                        </div>
+
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20, rotateX: -10 }}
+                            animate={{ scale: 1, y: 0, rotateX: 0 }}
+                            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                            className="w-full max-w-md bg-slate-900/80 border border-amber-500/20 rounded-[2rem] p-8 shadow-[0_0_50px_rgba(245,158,11,0.15)] flex flex-col items-center text-center relative overflow-hidden backdrop-blur-xl"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
+
+                            <div className="w-24 h-24 bg-amber-500/10 rounded-2xl rotate-3 flex items-center justify-center mb-8 text-amber-400 border border-amber-500/20 shadow-inner">
+                                <Icons.ShieldAlert size={48} className="-rotate-3" />
+                            </div>
+
+                            <h3 className="text-3xl font-black text-white mb-2 tracking-tight">Recuperação</h3>
+                            <div className="h-1 w-12 bg-amber-500 rounded-full mb-6"></div>
+                            
+                            {forgotPasswordStep === 'input' && (
+                                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="w-full">
+                                    <p className="text-sm text-slate-400 mb-8 leading-relaxed px-4">
+                                        Informe seu usuário ou e-mail vinculado à conta para iniciarmos o protocolo de segurança.
+                                    </p>
+                                    <div className="w-full mb-6 relative">
+                                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-amber-500/50">
+                                            <Icons.User size={20} />
+                                        </div>
+                                        <input 
+                                            className="w-full bg-slate-950/50 border border-amber-500/20 text-white rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all placeholder:text-slate-600"
+                                            value={forgotPasswordInput} 
+                                            onChange={(e:any) => setForgotPasswordInput(e.target.value)} 
+                                            placeholder="Usuário ou Email"
+                                            autoCapitalize="none"
+                                        />
+                                    </div>
+                                    <Button 
+                                        onClick={handleForgotPasswordSearch}
+                                        disabled={loading || !forgotPasswordInput}
+                                        loading={loading}
+                                        className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all active:scale-95 uppercase tracking-wider"
+                                    >
+                                        Localizar Conta
+                                    </Button>
+                                </motion.div>
+                            )}
+
+                            {forgotPasswordStep === 'token' && (
+                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="w-full">
+                                    <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                                        Código de segurança enviado para <br/><span className="text-amber-400 font-medium">{userEmail}</span>
+                                    </p>
+                                    <div className="w-full mb-6">
+                                        <input 
+                                            className="w-full bg-slate-950/50 border border-amber-500/20 text-white text-center text-3xl tracking-[0.5em] font-mono rounded-xl py-4 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all placeholder:text-slate-700"
+                                            value={token} 
+                                            onChange={(e:any) => setToken(e.target.value)} 
+                                            placeholder="000000"
+                                            maxLength={6}
+                                        />
+                                    </div>
+                                    <Button 
+                                        onClick={handleForgotPasswordVerify}
+                                        disabled={loading || token.length !== 6}
+                                        loading={loading}
+                                        className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all active:scale-95 uppercase tracking-wider"
+                                    >
+                                        Validar Identidade
+                                    </Button>
+                                </motion.div>
+                            )}
+
+                            {forgotPasswordStep === 'new_password' && (
+                                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+                                    <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                                        Identidade confirmada. Defina sua nova credencial de acesso.
+                                    </p>
+                                    <div className="w-full mb-6 relative">
+                                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-amber-500/50">
+                                            <Icons.Key size={20} />
+                                        </div>
+                                        <input 
+                                            className="w-full bg-slate-950/50 border border-amber-500/20 text-white rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all placeholder:text-slate-600"
+                                            value={newPassword} 
+                                            onChange={(e:any) => setNewPassword(e.target.value)} 
+                                            placeholder="Nova Senha (mín. 6 caracteres)"
+                                            type="password"
+                                        />
+                                    </div>
+                                    <Button 
+                                        onClick={handleForgotPasswordReset}
+                                        disabled={loading || newPassword.length < 6}
+                                        loading={loading}
+                                        className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all active:scale-95 uppercase tracking-wider"
+                                    >
+                                        Redefinir Acesso
+                                    </Button>
+                                </motion.div>
+                            )}
+
+                            <button 
+                                onClick={() => { setShowForgotPassword(false); setLoading(false); }}
+                                className="mt-8 text-xs text-slate-500 hover:text-amber-400 transition-colors uppercase font-bold tracking-widest flex items-center gap-2"
+                            >
+                                <Icons.ArrowLeft size={14} /> Voltar ao Login
                             </button>
                         </motion.div>
                     </motion.div>
