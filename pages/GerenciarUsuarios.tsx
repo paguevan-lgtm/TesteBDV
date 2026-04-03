@@ -123,12 +123,20 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: formUser.email, name: formUser.username, type: 'new_user' })
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
             
-            setShowEmailConfirm(false);
-            setShowTokenModal(true);
-            notify('Código enviado para o e-mail.', 'success');
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
+                
+                setShowEmailConfirm(false);
+                setShowTokenModal(true);
+                notify('Código enviado para o e-mail.', 'success');
+            } else {
+                const text = await response.text();
+                console.error("Non-JSON response:", text);
+                throw new Error('O servidor retornou uma resposta inválida (não JSON). Verifique se o backend está rodando corretamente.');
+            }
         } catch (error: any) {
             notify(error.message, 'error');
         }
@@ -144,12 +152,20 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: formUser.email, token })
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Token inválido');
             
-            setShowTokenModal(false);
-            setToken('');
-            handleSaveFinal();
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Token inválido');
+                
+                setShowTokenModal(false);
+                setToken('');
+                handleSaveFinal();
+            } else {
+                const text = await response.text();
+                console.error("Non-JSON response:", text);
+                throw new Error('O servidor retornou uma resposta inválida (não JSON). Verifique se o backend está rodando corretamente.');
+            }
         } catch (error: any) {
             notify(error.message, 'error');
         }

@@ -136,9 +136,17 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, name, type })
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
-            notify('Código enviado para o seu email.', 'success');
+            
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
+                notify('Código enviado para o seu email.', 'success');
+            } else {
+                const text = await response.text();
+                console.error("Non-JSON response:", text);
+                throw new Error('O servidor retornou uma resposta inválida (não JSON). Verifique se o backend está rodando corretamente.');
+            }
         } catch (error: any) {
             notify(error.message, 'error');
             throw error; 
@@ -154,11 +162,19 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: userEmail, token })
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Token inválido');
             
-            setShowTokenInput(false);
-            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, selectedSystem || undefined);
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Token inválido');
+                
+                setShowTokenInput(false);
+                startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, selectedSystem || undefined);
+            } else {
+                const text = await response.text();
+                console.error("Non-JSON response:", text);
+                throw new Error('O servidor retornou uma resposta inválida (não JSON). Verifique se o backend está rodando corretamente.');
+            }
         } catch (error: any) {
             notify(error.message, 'error');
             setLoading(false);
@@ -232,10 +248,18 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: userEmail, token })
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Token inválido');
             
-            setForgotPasswordStep('new_password');
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Token inválido');
+                
+                setForgotPasswordStep('new_password');
+            } else {
+                const text = await response.text();
+                console.error("Non-JSON response:", text);
+                throw new Error('O servidor retornou uma resposta inválida (não JSON). Verifique se o backend está rodando corretamente.');
+            }
         } catch (error: any) {
             notify(error.message, 'error');
         }
