@@ -104,7 +104,11 @@ export default function Agendamentos({ data, theme, setFormData, setModal, dbOp,
         dayElements.push(<button key={dateStr} onClick={() => setSelectedDate(dateStr)} className={`h-10 w-full rounded-lg flex flex-col items-center justify-center relative transition-colors ${isSelected ? theme.primary : 'hover:bg-white/5'}`}><span className={`text-sm ${isSelected ? 'font-bold' : 'opacity-80'}`}>{i}</span><div className="flex gap-0.5 mt-0.5">{hasTrip && <div className="w-1 h-1 rounded-full bg-blue-400"></div>}{hasPass && <div className="w-1 h-1 rounded-full bg-green-400"></div>}</div></button>);
     }
 
-    const passOfDayRaw = data.passengers.filter((p:any) => p.date === selectedDate);
+    const passOfDayRaw = data.passengers.filter((p:any) => {
+        if (p.date !== selectedDate) return false;
+        if (systemContext !== 'Mistura' && (p.system || 'Pg') !== systemContext) return false;
+        return true;
+    });
     const passOfDayMap = new Map();
     passOfDayRaw.forEach((p:any) => {
         const pId = p.realId || p.id;
@@ -114,16 +118,25 @@ export default function Agendamentos({ data, theme, setFormData, setModal, dbOp,
     });
     const passOfDay = Array.from(passOfDayMap.values());
 
-    const tripsForSelectedDate = data.trips.filter((t:any) => t.date === selectedDate).sort((a:any,b:any) => (a.time||'').localeCompare(b.time||''));
+    const tripsForSelectedDate = data.trips.filter((t:any) => {
+        if (t.date !== selectedDate) return false;
+        if (systemContext !== 'Mistura' && (t.system || 'Pg') !== systemContext) return false;
+        return true;
+    }).sort((a:any,b:any) => (a.time||'').localeCompare(b.time||''));
     const assigned: any[] = []; const pending: any[] = [];
     passOfDay.forEach((p:any) => { 
         const pId = p.realId || p.id;
-        const isAssigned = data.trips.some((t:any) => t.date === selectedDate && t.status !== 'Cancelada' && (t.passengerIds||[]).some((id:any) => String(id) === String(pId))); 
-        const isAssignedAtThisTime = data.trips.some((t:any) => t.date === selectedDate && t.status !== 'Cancelada' && t.time === p.time && (t.passengerIds||[]).some((id:any) => String(id) === String(pId)));
+        const pSystem = p.system || systemContext;
+        const isAssigned = data.trips.some((t:any) => 
+            t.date === selectedDate && 
+            t.status !== 'Cancelada' && 
+            (t.system || 'Pg') === (pSystem === 'Mistura' ? 'Pg' : pSystem) &&
+            (t.passengerIds||[]).some((id:any) => String(id) === String(pId))
+        ); 
 
         if (isAssigned) assigned.push(p); 
         
-        if (p.time && !isAssignedAtThisTime) {
+        if (p.time && !isAssigned) {
             pending.push(p);
         }
     });
@@ -208,7 +221,13 @@ export default function Agendamentos({ data, theme, setFormData, setModal, dbOp,
                     {assignedPass.length > 0 ? (
                         assignedPass.map((p:any) => {
                             const pId = p.realId || p.id;
-                            const trip = data.trips.find((t:any) => t.date === selectedDate && t.status !== 'Cancelada' && (t.passengerIds||[]).map(String).includes(String(pId)));
+                            const pSystem = p.system || systemContext;
+                            const trip = data.trips.find((t:any) => 
+                                t.date === selectedDate && 
+                                t.status !== 'Cancelada' && 
+                                (t.system || 'Pg') === (pSystem === 'Mistura' ? 'Pg' : pSystem) &&
+                                (t.passengerIds||[]).map(String).includes(String(pId))
+                            );
                             const isFinalized = trip && trip.status === 'Finalizada';
                             const displayTime = trip ? formatTime(trip.time) : (formatTime(p.time) || 'Sem horário');
 
