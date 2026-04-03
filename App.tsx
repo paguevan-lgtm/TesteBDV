@@ -1753,7 +1753,7 @@ const AppContent = () => {
     const del = (col: string, id: string) => {
         if (col === 'passengers' && user?.role === 'operator') {
             if (deletionCount >= 3) {
-                return notify("Limite de exclusão atingido (máx 3 por sessão). Contate um Admin.", "error");
+                return notify("Limite de exclusão atingido (máx 3 por sessão). Contate a Coordenação.", "error");
             }
         }
 
@@ -3154,8 +3154,23 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
         window.open(`https://wa.me/55${phone.replace(/\D/g,'')}?text=${encodedMsg}`, '_blank');
     };
 
-    const handleGlobalTouchStart = (e:any) => { if(view==='table'||menuOpen)return; globalTouchRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY}; };
-    const handleGlobalTouchEnd = (e:any) => { if(view==='table'||menuOpen)return; const dx=e.changedTouches[0].clientX-globalTouchRef.current.x; if(dx>80) setMenuOpen(true); };
+    const handleGlobalTouchStart = (e:any) => { 
+        if(view==='table'||menuOpen) return; 
+        globalTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; 
+    };
+    const handleGlobalTouchEnd = (e:any) => { 
+        if(view==='table'||menuOpen) return; 
+        const dx = e.changedTouches[0].clientX - globalTouchRef.current.x; 
+        const dy = e.changedTouches[0].clientY - globalTouchRef.current.y;
+        
+        // Gesto mais intencional: 
+        // 1. Deve começar perto da borda esquerda (x < 50)
+        // 2. O movimento horizontal (dx) deve ser maior que o vertical (dy)
+        // 3. O deslocamento deve ser de pelo menos 100px
+        if (dx > 100 && Math.abs(dx) > Math.abs(dy) * 2 && globalTouchRef.current.x < 50) {
+            setMenuOpen(true);
+        }
+    };
 
     if (isLoading) return <div id="app-loader" className="fixed inset-0 bg-black flex items-center justify-center"><div className="text-amber-500 font-bold">CARREGANDO...</div></div>;
     if (!isAuthenticated) return <LoginScreen theme={theme} />;
@@ -3419,7 +3434,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                     
                                     // Restrição: Só quem recebeu (ou admin) pode desmarcar
                                     if (!isPaying && trip.receivedBy && trip.receivedBy !== user.username && user.role !== 'admin') {
-                                        return notify(`Apenas ${trip.receivedBy} ou Admin pode desfazer este pagamento.`, 'error');
+                                        return notify(`Apenas ${trip.receivedBy} ou Coordenação pode desfazer este pagamento.`, 'error');
                                     }
         
                                     const payload:any = { 
@@ -3480,7 +3495,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                     db.ref('system_settings/Pg/pranchetaValue').set(val);
                                 }}
                             />}
-                            {view === 'manageUsers' && <GerenciarUsuarios data={data} theme={theme} setView={setView} dbOp={dbOp} notify={notify} user={user} requestConfirm={requestConfirm} />}
+                            {view === 'manageUsers' && <GerenciarUsuarios data={data} theme={theme} setView={setView} dbOp={dbOp} notify={notify} user={user} requestConfirm={requestConfirm} systemContext={systemContext} />}
                         </div>
                     </div>
                  </div>

@@ -7,7 +7,7 @@ import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, theme?: any }) => {
-    const { login, logoutReason, setLogoutReason } = useAuth(); 
+    const { login, findUsersByCredentials, logoutReason, setLogoutReason } = useAuth(); 
     const theme = appTheme || THEMES.default;
     
     const [username, setUsername] = useState('');
@@ -19,6 +19,11 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
     const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [logoutModalMessage, setLogoutModalMessage] = useState('');
+
+    // Multi-system selection
+    const [matchingUsers, setMatchingUsers] = useState<any[]>([]);
+    const [showSystemSelection, setShowSystemSelection] = useState(false);
+    const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
 
     // Efeito para mostrar motivo de logout
     useEffect(() => {
@@ -66,47 +71,31 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
         if(!username || !password) return notify("Preencha usuário e senha", "error");
         
         setLoading(true);
-        let userExists = false;
-
-        if (USERS_DB[username] && USERS_DB[username].pass === password) {
-            userExists = true;
-        }
-
-        if (!userExists && db) {
-            if (auth && !auth.currentUser) {
-                try {
-                    await auth.signInAnonymously();
-                } catch (e: any) {
-                    if (e.code !== 'auth/configuration-not-found' && e.code !== 'auth/operation-not-allowed') {
-                        console.error("Auth Error (PreLogin):", e);
-                    }
-                }
+        
+        try {
+            const users = await findUsersByCredentials(username, password);
+            
+            if (users.length === 0) {
+                setLoading(false);
+                notify('Acesso negado. Verifique suas credenciais.', 'error');
+                return;
             }
 
-            try {
-                const snapshot = await db.ref('users').once('value');
-                const users = snapshot.val();
-                if (users) {
-                    const found = Object.values(users).some((u:any) => 
-                        u.username && u.username.toLowerCase() === username.toLowerCase() && 
-                        u.pass === password
-                    );
-                    if (found) userExists = true;
-                }
-            } catch (error) {
-                console.error("Erro ao verificar usuário no DB:", error);
+            if (users.length > 1) {
+                setMatchingUsers(users);
+                setShowSystemSelection(true);
+                setLoading(false);
+                return;
             }
+
+            // Apenas um usuário encontrado
+            setLoading(false);
+            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
+        } catch (error) {
+            console.error("Erro no pre-login:", error);
+            setLoading(false);
+            notify("Erro ao processar login.", "error");
         }
-
-        setLoading(false);
-
-        if (!userExists) {
-            notify('Acesso negado. Verifique suas credenciais.', 'error');
-            return;
-        }
-
-        // Bypass temporário da geolocalização conforme solicitado pelo usuário
-        startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
     };
 
     const executeGeoLogin = () => {
@@ -146,12 +135,12 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
         tryGeo(true);
     };
 
-    const startEntrySequence = (coords: any) => {
+    const startEntrySequence = (coords: any, system?: string) => {
         setGeoStatus('Motor ligado. Iniciando...');
         setIsZooming(true); 
 
         setTimeout(async () => {
-            await login(username, password, coords);
+            await login(username, password, coords, system || selectedSystem || undefined);
         }, 1200); 
     };
 
@@ -333,6 +322,65 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
             </motion.div>
             
             <p className="text-[9px] text-slate-500 mt-8 relative z-20 font-mono tracking-widest opacity-50">SYSTEM VERSION 4.0.2 // ENCRYPTED SESSION</p>
+
+            <AnimatePresence>
+                {showSystemSelection && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 p-6 backdrop-blur-xl"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-[40px] p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
+
+                            <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 text-amber-500">
+                                <Icons.Zap size={40} />
+                            </div>
+
+                            <h3 className="text-2xl font-black text-white mb-3 uppercase italic">Múltiplos Sistemas</h3>
+                            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                                Identificamos que seu usuário possui acesso a múltiplos sistemas. Em qual deseja entrar agora?
+                            </p>
+
+                            <div className="grid grid-cols-1 gap-3 w-full">
+                                {matchingUsers.map((u) => (
+                                    <button
+                                        key={u.system}
+                                        onClick={() => {
+                                            setSelectedSystem(u.system);
+                                            setShowSystemSelection(false);
+                                            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, u.system);
+                                        }}
+                                        className="w-full group relative overflow-hidden p-4 rounded-2xl border border-white/5 bg-white/5 hover:bg-amber-500 hover:border-amber-500 transition-all duration-300 text-left"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black uppercase tracking-widest opacity-50 group-hover:text-amber-950">Acessar Sistema</span>
+                                                <span className="text-lg font-black uppercase italic group-hover:text-amber-950">{u.system}</span>
+                                            </div>
+                                            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-amber-400 group-hover:text-amber-950 transition-colors">
+                                                <Icons.ArrowRightLeft size={20} />
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button 
+                                onClick={() => { setShowSystemSelection(false); setLoading(false); }}
+                                className="mt-8 text-xs text-slate-500 hover:text-white transition-colors uppercase font-bold tracking-widest"
+                            >
+                                Cancelar Login
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* GEO PROMPT MODAL */}
             <AnimatePresence>

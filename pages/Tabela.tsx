@@ -353,7 +353,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                             <div className="px-4 font-mono font-bold text-sm">{formatDisplayDate(analysisDate)}</div>
                             <button onClick={() => setAnalysisDate(dateAddDays(analysisDate, 1))} className="p-2 hover:bg-white/10 rounded-md"><Icons.ChevronRight size={18}/></button>
                             <button onClick={() => setAnalysisDate(currentOpDate)} className="ml-2 text-xs bg-white/10 px-2 py-1 rounded hover:bg-white/20">{currentOpDate === getTodayDate() ? 'Hoje' : 'Amanhã (Op)'}</button>
-                            <button onClick={() => onPrint('print-tabela-list', 'Tabela_Geral', tableTab === 'mip6' ? 'TABELA 6:00' : tableTab === 'mip18' ? 'TABELA 18:00' : 'TABELA GERAL', { forceCols: 2, date: analysisDate })} className="ml-4 p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors" title="Salvar como Imagem (2 Colunas)"><Icons.Print size={18}/></button>
+                            <button onClick={() => onPrint('print-tabela-list', 'Tabela_Geral', tableTab === 'mip6' ? 'TABELA 6:00' : tableTab === 'mip18' ? 'TABELA 18:00' : 'TABELA GERAL', { forceCols: 2, date: analysisDate })} className="ml-4 p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors" title="Salvar como Imagem (2 Colunas)"><Icons.Screenshot size={18}/></button>
                         </div>
                     </div>
                     <div id="print-tabela-list" className="space-y-2">
@@ -578,7 +578,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                             <h3 className="text-lg font-bold text-green-400 flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-green-500"></span> CONFIRMADOS
                             </h3>
-                            <button onClick={() => onPrint('print-confirmados-list', 'Confirmados', 'LISTA DE CONFIRMADOS', { mode: 'confirmados', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20" title="Salvar como Imagem"><Icons.Print size={16}/></button>
+                            <button onClick={() => onPrint('print-confirmados-list', 'Confirmados', 'LISTA DE CONFIRMADOS', { mode: 'confirmados', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20" title="Salvar como Imagem"><Icons.Screenshot size={16}/></button>
                         </div>
                         
                         <div id="print-confirmados-list" className="space-y-2 min-h-[100px] relative z-10">
@@ -672,7 +672,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                             >
                                 <Icons.Plus size={14}/> Pular Horário
                             </button>
-                            <button onClick={() => onPrint('print-lousa-list', 'Lousa', 'LOUSA / FILA', { mode: 'lousa', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20 opacity-100" title="Salvar como Imagem"><Icons.Print size={16}/></button>
+                            <button onClick={() => onPrint('print-lousa-list', 'Lousa', 'LOUSA / FILA', { mode: 'lousa', date: currentOpDate })} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white relative z-20 opacity-100" title="Salvar como Imagem"><Icons.Screenshot size={16}/></button>
                         </div>
                     </div>
                     
@@ -830,7 +830,7 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                 className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30 transition-colors opacity-100" 
                                 title="Salvar como Imagem"
                             >
-                                <Icons.Print size={16}/>
+                                <Icons.Screenshot size={16}/>
                             </button>
                         </div>
                     </div>

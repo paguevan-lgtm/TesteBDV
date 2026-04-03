@@ -1,17 +1,35 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Icons, Button, Input, IconButton, Toast } from '../components/Shared';
 import { getAvatarUrl, generateUniqueId } from '../utils';
 import { db } from '../firebase';
 
-export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, user: currentUser, requestConfirm }: any) {
+export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, user: currentUser, requestConfirm, systemContext }: any) {
+    const [viewMode, setViewMode] = useState<'list' | 'form'>('list');
     const [isEditing, setIsEditing] = useState<string|null>(null);
-    const [formUser, setFormUser] = useState<any>({ username: '', pass: '', role: 'operador', system: 'Pg' });
+    const [formUser, setFormUser] = useState<any>({ username: '', email: '', pass: '', role: 'operador', systems: [systemContext || 'Pg'] });
     const [showPassword, setShowPassword] = useState(false);
+    const [showRoleMenu, setShowRoleMenu] = useState(false);
     const [subsData, setSubsData] = useState<any>({});
+    const roleMenuRef = useRef<HTMLDivElement>(null);
 
-    // Filtra para não mostrar o Breno
-    const userList = (data.users || []).filter((u:any) => u.username !== 'Breno');
+    // Close role menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (roleMenuRef.current && !roleMenuRef.current.contains(event.target as Node)) {
+                setShowRoleMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Filtra para não mostrar o Breno e filtra pelo sistema atual (se não for o Breno logado)
+    const userList = (data.users || []).filter((u:any) => 
+        u.username !== 'Breno' && 
+        (currentUser.username === 'Breno' || (u.systems && u.systems.includes(systemContext)) || u.system === systemContext)
+    );
 
     // Fetch subscriptions if admin
     useEffect(() => {
@@ -47,28 +65,55 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
     };
 
     const handleSave = () => {
-        if (!formUser.username || !formUser.pass) return notify("Preencha usuário e senha.", "error");
+        if (!formUser.username || !formUser.pass || !formUser.email || !formUser.systems || formUser.systems.length === 0) {
+            return notify("Preencha todos os campos obrigatórios (Usuário, E-mail, Senha e pelo menos um Sistema).", "error");
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formUser.email)) {
+            return notify("Por favor, insira um e-mail válido.", "error");
+        }
 
         if (formUser.username.toLowerCase() === 'breno') {
-            // Fail silently
-            setFormUser({ username: '', pass: '', role: 'operador' });
+            setFormUser({ username: '', email: '', pass: '', role: 'operador', systems: [systemContext || 'Pg'] });
             setIsEditing(null);
+            setViewMode('list');
             return;
         }
         
-        // Verifica duplicidade de nome (apenas na criação ou se mudou o nome)
-        const exists = userList.find((u:any) => u.username.toLowerCase() === formUser.username.toLowerCase() && u.id !== formUser.id);
-        if (exists) return notify("Este nome de usuário já existe.", "error");
+        // Check for duplicates
+        const exists = (data.users || []).find((u:any) => 
+            u.username.toLowerCase() === formUser.username.toLowerCase() && 
+            u.id !== formUser.id
+        );
+        if (exists) return notify(`O usuário ${formUser.username} já existe.`, "error");
 
-        dbOp(formUser.id ? 'update' : 'create', 'users', formUser);
-        setFormUser({ username: '', pass: '', role: 'operador', system: 'Pg' });
+        const userToSave = { ...formUser };
+        // We don't need the single 'system' field anymore, we use 'systems'
+        // But for backward compatibility with existing logic that might expect 'system', we can set it to the first one
+        if (userToSave.systems && userToSave.systems.length > 0) {
+            userToSave.system = userToSave.systems[0];
+        }
+
+        dbOp(isEditing ? 'update' : 'create', 'users', userToSave);
+
+        setFormUser({ username: '', email: '', pass: '', role: 'operador', systems: [systemContext || 'Pg'] });
         setIsEditing(null);
-        notify(formUser.id ? "Usuário atualizado!" : "Usuário criado!", "success");
+        setViewMode('list');
+        notify(isEditing ? "Usuário atualizado!" : "Usuário criado!", "success");
     };
 
     const handleEdit = (u: any) => {
-        setFormUser({ ...u });
+        const systems = u.systems || (u.system ? [u.system] : ['Pg']);
+        setFormUser({ ...u, systems });
         setIsEditing(u.id);
+        setViewMode('form');
+    };
+
+    const handleAddNew = () => {
+        setFormUser({ username: '', email: '', pass: '', role: 'operador', systems: [systemContext || 'Pg'] });
+        setIsEditing(null);
+        setViewMode('form');
     };
 
     const handleDelete = (id: string, name: string) => {
@@ -80,141 +125,314 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
     };
 
     const handleCancel = () => {
-        setFormUser({ username: '', pass: '', role: 'operador', system: 'Pg' });
+        setFormUser({ username: '', email: '', pass: '', role: 'operador', systems: [systemContext || 'Pg'] });
         setIsEditing(null);
+        setViewMode('list');
     };
 
     return (
-        <div className="space-y-6 max-w-4xl mx-auto pb-20">
-            {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
-                <button onClick={() => setView('settings')} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
-                    <Icons.Back size={24} />
-                </button>
-                <div className="flex-1">
-                    <h2 className="text-2xl font-bold">Controle de Usuários</h2>
-                    <p className="opacity-50 text-sm">Gerenciamento de Acessos</p>
+        <div className="space-y-6 max-w-4xl mx-auto pb-20 px-4 md:px-0">
+            {/* Header Principal */}
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={() => viewMode === 'form' ? setViewMode('list') : setView('settings')} 
+                        className="p-2.5 hover:bg-white/10 rounded-2xl transition-all active:scale-95 bg-white/5 border border-white/10"
+                    >
+                        <Icons.Back size={20} />
+                    </button>
+                    <div>
+                        <h2 className="text-2xl font-black tracking-tight">
+                            {viewMode === 'list' ? 'Gestão de Acessos' : (isEditing ? 'Personalizar Usuário' : 'Novo Cadastro')}
+                        </h2>
+                        <p className="opacity-50 text-xs font-bold uppercase tracking-widest">
+                            {viewMode === 'list' ? `Usuários do Sistema ${systemContext}` : 'Configurações de Perfil e Permissões'}
+                        </p>
+                    </div>
                 </div>
+
+                {viewMode === 'list' && (
+                    <Button 
+                        theme={theme} 
+                        onClick={handleAddNew} 
+                        variant="success" 
+                        className="shadow-lg shadow-green-500/20"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Icons.Plus size={18} />
+                            <span className="hidden md:inline">Novo Usuário</span>
+                        </div>
+                    </Button>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    
-                    {/* Form Section */}
-                    <div className={`md:col-span-1 ${theme.card} p-5 rounded-2xl border ${theme.border} h-fit`}>
-                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                            {isEditing ? <Icons.Edit className="text-blue-400"/> : <Icons.Plus className="text-green-400"/>}
-                            {isEditing ? 'Editar Usuário' : 'Novo Usuário'}
-                        </h3>
-                        
-                        <div className="space-y-4">
-                            <Input 
-                                theme={theme} 
-                                label="Nome de Usuário" 
-                                value={formUser.username} 
-                                onChange={(e:any) => setFormUser({...formUser, username: e.target.value})}
-                                placeholder="Ex: JoaoSilva"
-                            />
-                            
-                            <div className="relative">
-                                <Input 
-                                    theme={theme} 
-                                    label="Senha" 
-                                    type={showPassword ? "text" : "password"} 
-                                    value={formUser.pass} 
-                                    onChange={(e:any) => setFormUser({...formUser, pass: e.target.value})}
-                                    placeholder="******"
-                                />
-                                <button 
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-9 opacity-50 hover:opacity-100"
-                                >
-                                    {showPassword ? <Icons.CheckCircle size={16}/> : <Icons.Lock size={16}/>}
-                                </button>
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-bold opacity-60 ml-1">Permissão</label>
-                                <select 
-                                    className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14 outline-none focus:border-white/50" 
-                                    value={formUser.role} 
-                                    onChange={(e:any)=>setFormUser({...formUser, role:e.target.value})}
-                                >
-                                    <option value="operador" className="bg-slate-900">Operador</option>
-                                    <option value="admin" className="bg-slate-900">Administrador</option>
-                                </select>
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-bold opacity-60 ml-1">Sistema</label>
-                                <select 
-                                    className="bg-black/10 border border-white/10 text-white rounded-xl px-4 py-3.5 h-14 outline-none focus:border-white/50" 
-                                    value={formUser.system || 'Pg'} 
-                                    onChange={(e:any)=>setFormUser({...formUser, system:e.target.value})}
-                                >
-                                    <option value="Pg" className="bg-slate-900">Pg</option>
-                                    <option value="Mip" className="bg-slate-900">Mip</option>
-                                    <option value="Sv" className="bg-slate-900">Sv</option>
-                                </select>
-                            </div>
-
-                            <div className="flex gap-2 pt-2">
-                                {isEditing && (
-                                    <Button theme={theme} onClick={handleCancel} variant="secondary" className="flex-1" size="sm">
-                                        Cancelar
-                                    </Button>
-                                )}
-                                <Button theme={theme} onClick={handleSave} variant={isEditing ? 'primary' : 'success'} className="flex-1" size="sm">
-                                    {isEditing ? 'Atualizar' : 'Criar'}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* List Section */}
-                    <div className="md:col-span-2 space-y-3">
+            {viewMode === 'list' ? (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="grid grid-cols-1 gap-4">
                         {userList.length > 0 ? userList.map((u:any) => (
-                            <div key={u.id} className={`${theme.card} p-4 rounded-xl border ${theme.border} flex items-center justify-between group hover:border-white/20 transition-colors`}>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-slate-700 overflow-hidden border border-white/10">
-                                        <img src={getAvatarUrl(u.username)} alt={u.username} className="w-full h-full object-cover"/>
+                            <div 
+                                key={u.id} 
+                                className={`${theme.card} p-5 rounded-3xl border ${theme.border} flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:border-white/30 transition-all hover:shadow-xl hover:shadow-black/20`}
+                            >
+                                <div className="flex items-center gap-5">
+                                    <div className="relative flex-shrink-0">
+                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 overflow-hidden border-2 border-white/10 shadow-inner">
+                                            <img src={getAvatarUrl(u.username)} alt={u.username} className="w-full h-full object-cover"/>
+                                        </div>
+                                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-slate-900 ${u.role === 'admin' ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-lg">{u.username}</h4>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
-                                                {u.role}
+                                    <div className="min-w-0">
+                                        <h4 className="font-black text-xl leading-none mb-1 truncate">{u.username}</h4>
+                                        <p className="text-xs opacity-40 font-medium mb-2 truncate">{u.email || 'Sem e-mail cadastrado'}</p>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className={`text-[9px] uppercase font-black px-2.5 py-1 rounded-lg border ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
+                                                {u.role === 'admin' ? 'Coordenação' : u.role}
                                             </span>
-                                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border bg-gray-500/20 text-gray-300 border-gray-500/30`}>
-                                                {u.system || 'Pg'}
-                                            </span>
+                                            {(u.systems || [u.system || 'Pg']).map((sys: string) => (
+                                                <span key={sys} className={`text-[9px] uppercase font-black px-2.5 py-1 rounded-lg border bg-white/5 text-white/50 border-white/10`}>
+                                                    {sys}
+                                                </span>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 border-white/5 pt-3 sm:pt-0">
+                                    <div className="hidden lg:flex flex-col items-end mr-4">
+                                        <span className="text-[10px] opacity-30 font-bold uppercase tracking-tighter">Acesso</span>
+                                        <span className="text-xs font-mono opacity-60">{u.pass.substring(0,2)}••••••</span>
+                                    </div>
+
                                     {currentUser.username === 'Breno' && (
                                         <button 
                                             onClick={() => toggleSystemBlock(u.username)}
-                                            className={`p-2 rounded-lg border transition-colors ${subsData[u.username]?.isBlockedByAdmin ? 'bg-red-500 text-white border-red-600' : 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20'}`}
+                                            className={`p-3 rounded-2xl border transition-all active:scale-90 ${subsData[u.username]?.isBlockedByAdmin ? 'bg-red-500 text-white border-red-600 shadow-lg shadow-red-500/20' : 'bg-white/5 text-green-400 border-white/10 hover:bg-green-500/10 hover:border-green-500/20'}`}
                                             title={subsData[u.username]?.isBlockedByAdmin ? "Desbloquear Sistema" : "Bloquear Sistema"}
                                         >
                                             {subsData[u.username]?.isBlockedByAdmin ? <Icons.Lock size={18}/> : <Icons.Unlock size={18}/>}
                                         </button>
                                     )}
-                                    <div className="hidden md:block mr-4 text-xs opacity-40 font-mono">
-                                        Senha: {u.pass.substring(0,2)}***
-                                    </div>
-                                    <IconButton theme={theme} onClick={() => handleEdit(u)} icon={Icons.Edit} variant="secondary" />
-                                    <IconButton theme={theme} onClick={() => handleDelete(u.id, u.username)} icon={Icons.Trash} variant="danger" />
+                                    
+                                    <button 
+                                        onClick={() => handleEdit(u)}
+                                        className="p-3 bg-white/5 border border-white/10 rounded-2xl text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20 transition-all active:scale-90"
+                                    >
+                                        <Icons.Edit size={18} />
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={() => handleDelete(u.id, u.username)}
+                                        className="p-3 bg-white/5 border border-white/10 rounded-2xl text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all active:scale-90"
+                                    >
+                                        <Icons.Trash size={18} />
+                                    </button>
                                 </div>
                             </div>
                         )) : (
-                            <div className="col-span-2 text-center py-12 opacity-30 border-2 border-dashed border-white/10 rounded-xl">
-                                Nenhum usuário adicional encontrado.
+                            <div className="text-center py-20 opacity-30 border-2 border-dashed border-white/10 rounded-[40px] flex flex-col items-center gap-4">
+                                <Icons.Users size={48} />
+                                <p className="font-bold">Nenhum usuário encontrado para o sistema {systemContext}.</p>
+                                <Button theme={theme} onClick={handleAddNew} variant="secondary" size="sm">Começar Agora</Button>
                             </div>
                         )}
                     </div>
-            </div>
+                </div>
+            ) : (
+                <div className="animate-in fade-in zoom-in-95 duration-500">
+                    <div className={`${theme.card} p-8 rounded-[40px] border ${theme.border} shadow-2xl shadow-black/40 relative overflow-hidden`}>
+                        {/* Background Decor */}
+                        <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/10 blur-[100px] rounded-full"></div>
+                        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full"></div>
+
+                        <div className="relative z-10">
+                            <div className="flex flex-col md:flex-row gap-10">
+                                {/* Left Side: Avatar Preview */}
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="w-32 h-32 rounded-[32px] bg-gradient-to-br from-slate-700 to-slate-900 p-1 shadow-2xl">
+                                        <div className="w-full h-full rounded-[28px] overflow-hidden border-2 border-white/10">
+                                            <img 
+                                                src={getAvatarUrl(formUser.username || 'default')} 
+                                                alt="Preview" 
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Avatar Automático</p>
+                                </div>
+
+                                {/* Right Side: Form */}
+                                <div className="flex-1 space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <Input 
+                                            theme={theme} 
+                                            label="Nome de Usuário" 
+                                            value={formUser.username} 
+                                            onChange={(e:any) => setFormUser({...formUser, username: e.target.value})}
+                                            placeholder="Ex: joaosilva"
+                                            className="!rounded-2xl"
+                                        />
+                                        
+                                        <Input 
+                                            theme={theme} 
+                                            label="E-mail (Obrigatório)" 
+                                            type="email"
+                                            value={formUser.email} 
+                                            onChange={(e:any) => setFormUser({...formUser, email: e.target.value})}
+                                            placeholder="joao@exemplo.com"
+                                            className="!rounded-2xl"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="relative">
+                                            <Input 
+                                                theme={theme} 
+                                                label="Senha de Acesso" 
+                                                type={showPassword ? "text" : "password"} 
+                                                value={formUser.pass} 
+                                                onChange={(e:any) => setFormUser({...formUser, pass: e.target.value})}
+                                                placeholder="******"
+                                                className="!rounded-2xl"
+                                            />
+                                            <button 
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-4 top-10 text-white/30 hover:text-white transition-colors"
+                                            >
+                                                {showPassword ? <Icons.CheckCircle size={18}/> : <Icons.Lock size={18}/>}
+                                            </button>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-xs font-black uppercase tracking-widest opacity-40 ml-1">Nível de Permissão</label>
+                                            <div className="relative" ref={roleMenuRef}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowRoleMenu(!showRoleMenu)}
+                                                    className={`w-full h-14 px-5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${formUser.role === 'admin' ? 'bg-purple-500/10 border-purple-500/30 text-purple-300' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'} hover:bg-white/5`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        {formUser.role === 'admin' ? <Icons.Shield size={20} /> : <Icons.Users size={20} />}
+                                                        <span className="font-black text-sm uppercase tracking-wider">
+                                                            {formUser.role === 'admin' ? 'Coordenação' : 'Operador'}
+                                                        </span>
+                                                    </div>
+                                                    <motion.div
+                                                        animate={{ rotate: showRoleMenu ? 180 : 0 }}
+                                                        transition={{ duration: 0.2 }}
+                                                    >
+                                                        <Icons.ChevronDown size={20} className="opacity-40" />
+                                                    </motion.div>
+                                                </button>
+
+                                                <AnimatePresence>
+                                                    {showRoleMenu && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            className="absolute top-full left-0 right-0 mt-2 z-50 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden p-2"
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setFormUser({...formUser, role: 'operador'}); setShowRoleMenu(false); }}
+                                                                className={`w-full p-4 rounded-2xl flex items-center justify-between transition-all ${formUser.role === 'operador' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-white/5 text-white/60'}`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${formUser.role === 'operador' ? 'bg-blue-500 text-white' : 'bg-white/5'}`}>
+                                                                        <Icons.Users size={20} />
+                                                                    </div>
+                                                                    <div className="text-left">
+                                                                        <p className="font-black text-sm uppercase tracking-wider">Operador</p>
+                                                                        <p className="text-[10px] opacity-50 font-bold">Acesso padrão ao sistema</p>
+                                                                    </div>
+                                                                </div>
+                                                                {formUser.role === 'operador' && <Icons.Check size={18} />}
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setFormUser({...formUser, role: 'admin'}); setShowRoleMenu(false); }}
+                                                                className={`w-full p-4 rounded-2xl flex items-center justify-between mt-1 transition-all ${formUser.role === 'admin' ? 'bg-purple-500/20 text-purple-300' : 'hover:bg-white/5 text-white/60'}`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${formUser.role === 'admin' ? 'bg-purple-500 text-white' : 'bg-white/5'}`}>
+                                                                        <Icons.Shield size={20} />
+                                                                    </div>
+                                                                    <div className="text-left">
+                                                                        <p className="font-black text-sm uppercase tracking-wider">Coordenação</p>
+                                                                        <p className="text-[10px] opacity-50 font-bold">Acesso total e configurações</p>
+                                                                    </div>
+                                                                </div>
+                                                                {formUser.role === 'admin' && <Icons.Check size={18} />}
+                                                            </button>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-black uppercase tracking-widest opacity-40 ml-1">Sistemas Alocados</label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {['Pg', 'Mip', 'Sv'].map(sys => {
+                                                const isSelected = formUser.systems?.includes(sys);
+                                                return (
+                                                    <button
+                                                        key={sys}
+                                                        disabled={currentUser.username !== 'Breno'}
+                                                        onClick={() => {
+                                                            const currentSystems = formUser.systems || [];
+                                                            if (isSelected) {
+                                                                // Don't allow removing the last system
+                                                                if (currentSystems.length > 1) {
+                                                                    setFormUser({...formUser, systems: currentSystems.filter((s:string) => s !== sys)});
+                                                                } else {
+                                                                    notify("Pelo menos um sistema deve ser selecionado.", "info");
+                                                                }
+                                                            } else {
+                                                                setFormUser({...formUser, systems: [...currentSystems, sys]});
+                                                            }
+                                                        }}
+                                                        className={`py-3 rounded-2xl border font-black text-sm transition-all ${isSelected ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/30' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'} ${currentUser.username !== 'Breno' && !isSelected ? 'opacity-20 cursor-not-allowed' : ''}`}
+                                                    >
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            {isSelected && <Icons.CheckCircle size={14} />}
+                                                            {sys}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        {currentUser.username !== 'Breno' && (
+                                            <p className="text-[10px] opacity-40 font-bold mt-1 italic">Você só pode gerenciar usuários para o sistema {systemContext}.</p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-4 pt-6">
+                                        <Button 
+                                            theme={theme} 
+                                            onClick={handleCancel} 
+                                            variant="secondary" 
+                                            className="flex-1 !rounded-2xl py-4"
+                                        >
+                                            Descartar
+                                        </Button>
+                                        <Button 
+                                            theme={theme} 
+                                            onClick={handleSave} 
+                                            variant="success" 
+                                            className="flex-1 !rounded-2xl py-4 shadow-xl shadow-green-500/20"
+                                        >
+                                            {isEditing ? 'Salvar Alterações' : 'Finalizar Cadastro'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

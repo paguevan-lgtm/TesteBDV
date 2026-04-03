@@ -100,8 +100,16 @@ export const THEMES: Record<string, Theme> = {
     },
 };
 
-export const USERS_DB: Record<string, {pass: string, role: string}> = {
-};
+export interface StaticUser {
+    username: string;
+    pass: string;
+    role: string;
+    systems: string[];
+}
+
+export const USERS_DB: StaticUser[] = [
+    { username: 'Gilson', pass: '123456', role: 'admin', systems: ['SV', 'MIP', 'PG'] },
+];
 
 export const DEFAULT_FOLGAS = {
     'SEGUNDA': [],

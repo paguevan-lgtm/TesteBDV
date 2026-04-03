@@ -8,6 +8,7 @@ import { getDeviceFingerprint, parseUserAgent, getHardwareInfo, getTodayDate } f
 interface User {
     username: string;
     role: string;
+    email?: string;
     system?: string;
     sessionId?: string;
 }
@@ -17,7 +18,8 @@ interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    login: (u: string, p: string, coords: any) => Promise<boolean>;
+    login: (u: string, p: string, coords: any, system?: string) => Promise<boolean>;
+    findUsersByCredentials: (u: string, p: string) => Promise<User[]>;
     logout: (reason?: string) => void;
     updateActivity: () => void;
     logoutReason: string | null;
@@ -186,7 +188,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     };
 
     // 2. Função de Login (DB First, Fallback to Constant)
-    const login = async (u: string, p: string, coords: any): Promise<boolean> => {
+    const login = async (u: string, p: string, coords: any, system?: string): Promise<boolean> => {
         try {
             // --- GATHER DEVICE AND LOCATION INFO ---
             const deviceId = await getDeviceFingerprint();
@@ -307,15 +309,34 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                     const snapshot = await db.ref('users').once('value');
                     const users = snapshot.val();
                     if (users) {
-                        const foundKey = Object.keys(users).find(key => 
-                            users[key].username.toLowerCase() === u.toLowerCase() && 
-                            users[key].pass === p
-                        );
-                        if (foundKey) {
+                        const allUsers = Object.keys(users).map(key => ({ ...users[key], id: key }));
+                        const matchingUsers: any[] = [];
+                        
+                        allUsers.forEach(user => {
+                            if (user.username.toLowerCase() === u.toLowerCase() && user.pass === p) {
+                                if (user.systems && Array.isArray(user.systems)) {
+                                    user.systems.forEach((sys: string) => {
+                                        matchingUsers.push({ ...user, system: sys });
+                                    });
+                                } else {
+                                    matchingUsers.push(user);
+                                }
+                            }
+                        });
+
+                        let foundUser = null;
+                        if (system) {
+                            foundUser = matchingUsers.find(user => user.system === system);
+                        } else {
+                            foundUser = matchingUsers[0];
+                        }
+
+                        if (foundUser) {
                             userData = { 
-                                username: users[foundKey].username, 
-                                role: users[foundKey].role,
-                                system: users[foundKey].system
+                                username: foundUser.username, 
+                                role: foundUser.role,
+                                system: foundUser.system,
+                                email: foundUser.email
                             };
                         }
                     }
@@ -325,9 +346,15 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
             }
 
             // B. Fallback para USERS_DB (Constante Local) se não achou no DB
-            if (!userData && USERS_DB[u] && USERS_DB[u].pass === p) {
-                // @ts-ignore
-                userData = { username: u, role: USERS_DB[u].role, system: USERS_DB[u].system };
+            if (!userData) {
+                const localUser = USERS_DB.find(u_item => 
+                    u_item.username.toLowerCase() === u.toLowerCase() && 
+                    u_item.pass === p &&
+                    (!system || u_item.systems.includes(system))
+                );
+                if (localUser) {
+                    userData = { username: u, role: localUser.role, system: system || localUser.systems[0] };
+                }
             }
 
             if (userData) {
@@ -460,12 +487,69 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
         return false;
     };
 
+    const findUsersByCredentials = async (u: string, p: string): Promise<User[]> => {
+        const matchingUsers: User[] = [];
+
+        // A. Firebase
+        if (db) {
+            try {
+                const snapshot = await db.ref('users').once('value');
+                const users = snapshot.val();
+                if (users) {
+                    Object.keys(users).forEach(key => {
+                        const user = users[key];
+                        if (user.username.toLowerCase() === u.toLowerCase() && user.pass === p) {
+                            if (user.systems && Array.isArray(user.systems)) {
+                                user.systems.forEach((sys: string) => {
+                                    matchingUsers.push({
+                                        username: user.username,
+                                        role: user.role,
+                                        system: sys,
+                                        email: user.email
+                                    });
+                                });
+                            } else {
+                                matchingUsers.push({
+                                    username: user.username,
+                                    role: user.role,
+                                    system: user.system,
+                                    email: user.email
+                                });
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Erro findUsersByCredentials (DB):", e);
+            }
+        }
+
+        // B. Local Fallback
+        USERS_DB.forEach(localUser => {
+            if (localUser.username.toLowerCase() === u.toLowerCase() && localUser.pass === p) {
+                localUser.systems.forEach(sys => {
+                    const alreadyAdded = matchingUsers.some(mu => mu.username === u && mu.system === sys);
+                    if (!alreadyAdded) {
+                        matchingUsers.push({
+                            username: u,
+                            role: localUser.role,
+                            system: sys
+                        });
+                    }
+                });
+            }
+        });
+
+        return matchingUsers;
+    };
+
     return (
         <AuthContext.Provider value={{ 
             user, 
             isAuthenticated: !!user, 
             isLoading, 
             login, 
+            findUsersByCredentials,
             logout, 
             updateActivity, 
             logoutReason, 

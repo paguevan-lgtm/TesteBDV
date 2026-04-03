@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Theme } from '../types';
 import { THEMES, COLORS } from '../constants';
 import { formatDisplayDate, parseDisplayDate } from '../utils';
@@ -118,7 +118,8 @@ export const Icons = {
     Twitter: (p:any) => <Icon {...p}><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z" /></Icon>,
     Mail: (p:any) => <Icon {...p}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></Icon>,
     ArrowRight: (p:any) => <Icon {...p}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></Icon>,
-    ArrowRightLeft: (p:any) => <Icon {...p}><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></Icon>
+    ArrowRightLeft: (p:any) => <Icon {...p}><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></Icon>,
+    Screenshot: (p:any) => <Icon {...p}><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><polyline points="16 3 21 3 21 8"/><line x1="14" y1="10" x2="21" y2="3"/></Icon>
 };
 
 export const Button = ({ onClick, children, theme, variant='primary', icon:IconComp, disabled, loading, className='', size='md', id='' }: any) => {
@@ -415,82 +416,143 @@ export const WeatherWidget = ({ theme, location }: any) => {
 };
 
 export const PersistentNotifications = ({ notifications, onClose }: any) => {
-    if (notifications.length === 0) return null;
     return (
-        <div className="fixed top-20 left-4 right-4 z-[9999] flex flex-col gap-2">
-            {notifications.map((n: any) => (
-                <div key={n.id} className="bg-amber-600 text-white p-3 rounded-lg flex justify-between items-center shadow-lg animate-bounce-in">
-                    <span className="text-sm font-bold">{n.message}</span>
-                    <button onClick={() => onClose(n.id)} className="ml-2 hover:bg-amber-700 p-1 rounded">
-                        <Icons.X size={16} />
-                    </button>
-                </div>
-            ))}
+        <div className="fixed top-24 left-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none">
+            <AnimatePresence>
+                {notifications.map((n: any) => (
+                    <motion.div 
+                        key={n.id}
+                        initial={{ opacity: 0, x: 50, scale: 0.9 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 50, scale: 0.9 }}
+                        className="bg-amber-500/90 backdrop-blur-xl text-white p-4 rounded-[24px] flex justify-between items-center shadow-2xl border border-white/10 pointer-events-auto max-w-md ml-auto"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                                <Icons.AlertTriangle size={16} />
+                            </div>
+                            <span className="text-sm font-bold leading-tight">{n.message}</span>
+                        </div>
+                        <button onClick={() => onClose(n.id)} className="ml-4 hover:bg-white/10 p-2 rounded-xl transition-colors">
+                            <Icons.X size={18} />
+                        </button>
+                    </motion.div>
+                ))}
+            </AnimatePresence>
         </div>
     );
 };
 
 export const Toast = ({ message, type, visible }: any) => {
-    if (!visible) return null;
-    let bg = 'bg-slate-800';
-    if (type === 'success') bg = 'bg-green-600';
-    if (type === 'error') bg = 'bg-red-600';
-    if (type === 'info') bg = 'bg-blue-600';
-
     return (
-        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 text-white font-bold text-sm animate-bounce-in ${bg}`}>
-            {type === 'success' && <Icons.CheckCircle size={18}/>}
-            {type === 'error' && <Icons.X size={18}/>}
-            {type === 'info' && <Icons.Bell size={18}/>}
-            {message}
-        </div>
+        <AnimatePresence>
+            {visible && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -40, x: '-50%', scale: 0.8 }}
+                    animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
+                    exit={{ opacity: 0, y: -40, x: '-50%', scale: 0.8 }}
+                    className={`fixed top-8 left-1/2 z-[9999] px-6 py-4 rounded-[32px] shadow-2xl flex items-center gap-4 text-white font-bold text-sm backdrop-blur-2xl border border-white/10 min-w-[300px] max-w-[90vw]`}
+                    style={{
+                        background: type === 'success' ? 'rgba(16, 185, 129, 0.85)' : 
+                                    type === 'error' ? 'rgba(239, 68, 68, 0.85)' : 
+                                    'rgba(59, 130, 246, 0.85)',
+                        boxShadow: type === 'success' ? '0 20px 40px -10px rgba(16, 185, 129, 0.3)' :
+                                   type === 'error' ? '0 20px 40px -10px rgba(239, 68, 68, 0.3)' :
+                                   '0 20px 40px -10px rgba(59, 130, 246, 0.3)'
+                    }}
+                >
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+                        {type === 'success' && <Icons.CheckCircle size={22}/>}
+                        {type === 'error' && <Icons.X size={22}/>}
+                        {type === 'info' && <Icons.Bell size={22}/>}
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-0.5 font-black">Sistema</p>
+                        <p className="text-sm leading-tight font-black">{message}</p>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 
 export const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, type='danger', theme }: any) => {
-    if (!isOpen) return null;
     const t = theme || THEMES.default;
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-            <div className={`${t.card} w-full max-w-sm p-6 rounded-2xl border ${t.border} shadow-2xl transform scale-100 transition-all`}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${type === 'danger' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
-                    {type === 'danger' ? <Icons.Trash size={24}/> : <Icons.Bell size={24}/>}
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        className={`${t.card} w-full max-w-sm p-8 rounded-[40px] border ${t.border} shadow-2xl relative overflow-hidden`}
+                    >
+                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
+                        
+                        <div className="relative z-10">
+                            <div className={`w-16 h-16 rounded-[20px] flex items-center justify-center mb-6 ${type === 'danger' ? 'bg-red-500/20 text-red-500 shadow-lg shadow-red-500/10' : 'bg-blue-500/20 text-blue-500 shadow-lg shadow-blue-500/10'}`}>
+                                {type === 'danger' ? <Icons.Trash size={32}/> : <Icons.Bell size={32}/>}
+                            </div>
+                            <h3 className="text-2xl font-black tracking-tight mb-3">{title}</h3>
+                            <p className="text-sm opacity-60 mb-8 leading-relaxed font-medium">{message}</p>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={onCancel} 
+                                    className="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 font-black text-sm transition-all active:scale-95 border border-white/5"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={onConfirm} 
+                                    className={`flex-1 py-4 rounded-2xl font-black text-sm text-white shadow-xl transition-all active:scale-95 ${type === 'danger' ? 'bg-red-600 hover:bg-red-500 shadow-red-500/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'}`}
+                                >
+                                    Confirmar
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
                 </div>
-                <h3 className="text-xl font-bold mb-2">{title}</h3>
-                <p className="text-sm opacity-70 mb-6 leading-relaxed">{message}</p>
-                <div className="grid grid-cols-2 gap-3">
-                    <button onClick={onCancel} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 font-bold text-sm transition-colors">Cancelar</button>
-                    <button onClick={onConfirm} className={`px-4 py-2 rounded-xl font-bold text-sm text-white shadow-lg transition-transform active:scale-95 ${type === 'danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
+            )}
+        </AnimatePresence>
     );
 };
 
 export const AlertModal = ({ isOpen, title, message, onClose, theme, type='warning' }: any) => {
-    if (!isOpen) return null;
     const t = theme || THEMES.default;
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-            <div className={`${t.card} w-full max-w-sm p-6 rounded-2xl border ${t.border} shadow-2xl relative`}>
-                <button onClick={onClose} className="absolute top-4 right-4 opacity-40 hover:opacity-100 transition-opacity">
-                    <Icons.X size={20}/>
-                </button>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${type === 'danger' ? 'bg-red-500/20 text-red-500' : 'bg-amber-500/20 text-amber-500'}`}>
-                    {type === 'danger' ? <Icons.AlertTriangle size={24}/> : <Icons.Bell size={24}/>}
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        className={`${t.card} w-full max-w-sm p-8 rounded-[40px] border ${t.border} shadow-2xl relative overflow-hidden`}
+                    >
+                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
+                        
+                        <button onClick={onClose} className="absolute top-6 right-6 opacity-40 hover:opacity-100 transition-opacity p-2 hover:bg-white/5 rounded-xl">
+                            <Icons.X size={20}/>
+                        </button>
+                        
+                        <div className="relative z-10">
+                            <div className={`w-16 h-16 rounded-[20px] flex items-center justify-center mb-6 ${type === 'danger' ? 'bg-red-500/20 text-red-500 shadow-lg shadow-red-500/10' : 'bg-amber-500/20 text-amber-500 shadow-lg shadow-amber-500/10'}`}>
+                                {type === 'danger' ? <Icons.AlertTriangle size={32}/> : <Icons.Bell size={32}/>}
+                            </div>
+                            <h3 className="text-2xl font-black tracking-tight mb-3">{title}</h3>
+                            <p className="text-sm opacity-60 mb-8 leading-relaxed font-medium">{message}</p>
+                            <button 
+                                onClick={onClose} 
+                                className={`w-full py-4 rounded-2xl font-black text-sm text-white shadow-xl transition-all active:scale-95 ${type === 'danger' ? 'bg-red-600 hover:bg-red-500 shadow-red-500/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'}`}
+                            >
+                                Entendi
+                            </button>
+                        </div>
+                    </motion.div>
                 </div>
-                <h3 className="text-xl font-bold mb-2">{title}</h3>
-                <p className="text-sm opacity-70 mb-6 leading-relaxed">{message}</p>
-                <button 
-                    onClick={onClose} 
-                    className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-transform active:scale-95 ${type === 'danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                >
-                    Entendi
-                </button>
-            </div>
-        </div>
+            )}
+        </AnimatePresence>
     );
 };
 
@@ -528,14 +590,14 @@ export const AdminAuthModal = ({ isOpen, onClose, onAuth, theme, users }: any) =
                 <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center mb-4">
                     <Icons.Lock size={24}/>
                 </div>
-                <h3 className="text-xl font-bold mb-2">Autorização Admin</h3>
+                <h3 className="text-xl font-bold mb-2">Autorização Coordenação</h3>
                 <p className="text-sm opacity-70 mb-6 leading-relaxed">
-                    Comportamento estranho detectado. Para continuar excluindo dados, é necessária a autorização de um administrador.
+                    Comportamento estranho detectado. Para continuar excluindo dados, é necessária a autorização da coordenação.
                 </p>
                 
                 <div className="space-y-4 mb-6">
                     <Input 
-                        label="Usuário Admin" 
+                        label="Usuário Coordenação" 
                         value={user} 
                         onChange={(e:any) => setUser(e.target.value)} 
                         placeholder="Nome do usuário"

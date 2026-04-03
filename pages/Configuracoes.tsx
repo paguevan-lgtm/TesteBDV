@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Icons, Input, Button, IconButton } from '../components/Shared';
 import { EditExpirationModal } from '../components/EditExpirationModal';
 import { THEMES } from '../constants';
@@ -117,6 +118,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
         { id: 'financeiro', label: 'Financeiro', icon: Icons.Dollar },
         { id: 'sistema', label: 'Sistema & IA', icon: Icons.Stars },
         { id: 'novidades', label: 'Novidades', icon: Icons.Bell },
+        { id: 'seguranca', label: 'Segurança', icon: Icons.Lock },
     ];
 
     if (isAdmin || isSuperAdmin) {
@@ -125,13 +127,25 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
     }
 
     if (isSuperAdmin) {
-        tabs.push({ id: 'admin', label: 'Admin', icon: Icons.Shield });
+        tabs.push({ id: 'admin', label: 'Coordenação', icon: Icons.Shield });
     }
 
+    const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPasswordForm, setShowPasswordForm] = useState(false);
 
     const handleChangePassword = () => {
+        const userToUpdate = data.users.find((u: any) => u.username === user.username);
+        
+        if (!userToUpdate) {
+            return notify("Erro ao encontrar seu usuário.", "error");
+        }
+
+        if (currentPassword !== userToUpdate.pass) {
+            return notify("Senha atual incorreta.", "error");
+        }
+
         if (newPassword.length < 6) {
             return notify("A nova senha deve ter no mínimo 6 caracteres.", "error");
         }
@@ -139,16 +153,13 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
             return notify("As senhas não coincidem.", "error");
         }
 
-        const userToUpdate = data.users.find((u: any) => u.username === user.username);
-        if (userToUpdate) {
-            const updatedUser = { ...userToUpdate, pass: newPassword };
-            dbOp('update', 'users', updatedUser);
-            notify("Senha alterada com sucesso!", "success");
-            setNewPassword('');
-            setConfirmPassword('');
-        } else {
-            notify("Erro ao encontrar seu usuário para alterar a senha.", "error");
-        }
+        const updatedUser = { ...userToUpdate, pass: newPassword };
+        dbOp('update', 'users', updatedUser);
+        notify("Senha alterada com sucesso!", "success");
+        setNewPassword('');
+        setConfirmPassword('');
+        setCurrentPassword('');
+        setShowPasswordForm(false);
     };
 
 
@@ -240,7 +251,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
             const cleanBreno = (obj: any): any => {
                 if (obj === null || typeof obj !== 'object') {
                     if (typeof obj === 'string') {
-                        return obj.replace(/Breno/g, 'Admin');
+                        return obj.replace(/Breno/g, 'Coordenação');
                     }
                     return obj;
                 }
@@ -494,7 +505,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                             <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${themeKey === 'solar' ? theme.text : 'text-white'}`}>{user.username}</h2>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
-                                    {user.role}
+                                    {user.role === 'admin' ? 'Coordenação' : user.role}
                                 </span>
                                 <span className="text-xs opacity-50">•</span>
                                 <span className="text-xs opacity-50">Renova em: {daysRemaining}</span>
@@ -542,30 +553,6 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                 {/* TAB: GERAL */}
                 {activeTab === 'geral' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* MUDAR SENHA */}
-                        <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
-                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                <Icons.Lock className={theme.accent}/> Segurança da Conta
-                            </h3>
-                            <div className="space-y-3">
-                                <Input 
-                                    theme={theme} 
-                                    type="password"
-                                    placeholder="Nova Senha"
-                                    value={newPassword}
-                                    onChange={(e: any) => setNewPassword(e.target.value)}
-                                />
-                                <Input 
-                                    theme={theme} 
-                                    type="password"
-                                    placeholder="Confirmar Nova Senha"
-                                    value={confirmPassword}
-                                    onChange={(e: any) => setConfirmPassword(e.target.value)}
-                                />
-                                <Button theme={theme} onClick={handleChangePassword} variant="primary" className="w-full">Alterar Senha</Button>
-                            </div>
-                        </div>
-
                         {/* APARÊNCIA */}
                         <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -590,6 +577,76 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 ))}
                             </div>
                             <Button theme={theme} onClick={handleClearCache} variant="secondary" className="w-full" icon={Icons.Trash}>Limpar Cache Local</Button>
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB: SEGURANÇA */}
+                {activeTab === 'seguranca' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* MUDAR SENHA */}
+                        <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                <Icons.Lock className={theme.accent}/> Segurança da Conta
+                            </h3>
+                            
+                            {!showPasswordForm ? (
+                                <div className="space-y-4">
+                                    <p className="text-sm opacity-60">Para sua segurança, recomendamos trocar sua senha periodicamente.</p>
+                                    <Button 
+                                        theme={theme} 
+                                        onClick={() => setShowPasswordForm(true)} 
+                                        variant="secondary" 
+                                        className="w-full"
+                                        icon={Icons.Lock}
+                                    >
+                                        Alterar Senha
+                                    </Button>
+                                </div>
+                            ) : (
+                                <AnimatePresence>
+                                    <motion.div 
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="space-y-3 overflow-hidden"
+                                    >
+                                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-2">
+                                            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Atenção</p>
+                                            <p className="text-xs opacity-70">Você precisará confirmar sua senha atual para prosseguir.</p>
+                                        </div>
+                                        <Input 
+                                            theme={theme} 
+                                            type="password"
+                                            label="Senha Atual"
+                                            placeholder="Digite sua senha atual"
+                                            value={currentPassword}
+                                            onChange={(e: any) => setCurrentPassword(e.target.value)}
+                                        />
+                                        <div className="h-px bg-white/5 my-2"></div>
+                                        <Input 
+                                            theme={theme} 
+                                            type="password"
+                                            label="Nova Senha"
+                                            placeholder="Mínimo 6 caracteres"
+                                            value={newPassword}
+                                            onChange={(e: any) => setNewPassword(e.target.value)}
+                                        />
+                                        <Input 
+                                            theme={theme} 
+                                            type="password"
+                                            label="Confirmar Nova Senha"
+                                            placeholder="Repita a nova senha"
+                                            value={confirmPassword}
+                                            onChange={(e: any) => setConfirmPassword(e.target.value)}
+                                        />
+                                        <div className="grid grid-cols-2 gap-2 pt-2">
+                                            <Button theme={theme} onClick={() => setShowPasswordForm(false)} variant="secondary" className="w-full">Cancelar</Button>
+                                            <Button theme={theme} onClick={handleChangePassword} variant="primary" className="w-full">Salvar Nova Senha</Button>
+                                        </div>
+                                    </motion.div>
+                                </AnimatePresence>
+                            )}
                         </div>
                     </div>
                 )}
