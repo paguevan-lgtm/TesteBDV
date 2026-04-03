@@ -29,6 +29,21 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
     const [showTokenInput, setShowTokenInput] = useState(false);
     const [token, setToken] = useState('');
     const [userEmail, setUserEmail] = useState('');
+    const [currentUserUid, setCurrentUserUid] = useState('');
+
+    // Device ID for trusted devices
+    const getDeviceId = () => {
+        try {
+            let id = localStorage.getItem('boradevan_device_id');
+            if (!id) {
+                id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                localStorage.setItem('boradevan_device_id', id);
+            }
+            return id;
+        } catch (e) {
+            return 'temp_' + Math.random().toString(36).substring(2, 15);
+        }
+    };
 
     // Forgot Password State
     const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -107,8 +122,15 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 }
                 try {
                     setUserEmail(targetEmail);
-                    await sendToken(targetEmail, user.displayName || user.username);
-                    setShowTokenInput(true);
+                    setCurrentUserUid(user.uid);
+                    const result = await sendToken(targetEmail, user.displayName || user.username, 'login', user.uid);
+                    
+                    if (result && result.trusted) {
+                        // Device is trusted, skip token input
+                        startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, selectedSystem || undefined);
+                    } else {
+                        setShowTokenInput(true);
+                    }
                 } catch (e) {
                     // Error already notified
                 }
@@ -129,19 +151,26 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
         }
     };
 
-    const sendToken = async (email: string, name: string, type: 'login' | 'reset' = 'login') => {
+    const sendToken = async (email: string, name: string, type: 'login' | 'reset' = 'login', uid?: string) => {
         try {
+            const deviceId = getDeviceId();
             const response = await fetch('/api/send-login-token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, name, type })
+                body: JSON.stringify({ email, name, type, uid, deviceId })
             });
             
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.indexOf("application/json") !== -1) {
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Erro ao enviar token');
+                
+                if (data.trusted) {
+                    return data;
+                }
+                
                 notify('Código enviado para o seu email.', 'success');
+                return data;
             } else {
                 const text = await response.text();
                 console.error("Non-JSON response:", text);
@@ -157,10 +186,11 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
         if (!token) return notify('Preencha o código', 'error');
         setLoading(true);
         try {
+            const deviceId = getDeviceId();
             const response = await fetch('/api/verify-login-token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userEmail, token })
+                body: JSON.stringify({ email: userEmail, token, uid: currentUserUid, deviceId })
             });
             
             const contentType = response.headers.get("content-type");
@@ -572,8 +602,15 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                                             setLoading(true);
                                             try {
                                                 setUserEmail(targetEmail);
-                                                await sendToken(targetEmail, u.displayName || u.username);
-                                                setShowTokenInput(true);
+                                                setCurrentUserUid(u.uid);
+                                                const result = await sendToken(targetEmail, u.displayName || u.username, 'login', u.uid);
+                                                
+                                                if (result && result.trusted) {
+                                                    // Device is trusted, skip token input
+                                                    startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 }, u.system);
+                                                } else {
+                                                    setShowTokenInput(true);
+                                                }
                                             } catch (e) {
                                                 // Error already notified
                                             }
