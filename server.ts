@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 
-const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Stripe Configuration
 let stripeClient: Stripe | null = null;
@@ -134,9 +134,8 @@ async function updateUserSubscriptionStatus(userId: string, status: string, mpId
     }
 }
 
-const app = express();
-
 async function startServer() {
+    const app = express();
     const PORT = Number(process.env.PORT) || 3000;
 
     // Use JSON parser for all non-webhook routes
@@ -709,11 +708,6 @@ async function startServer() {
         }
     });
 
-    // Catch-all for API routes to prevent falling through to SPA fallback
-    app.all('/api/*', (req, res) => {
-        res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` });
-    });
-
     // Vite Middleware (Development)
     if (process.env.NODE_ENV !== 'production') {
         const vite = await createViteServer({
@@ -729,13 +723,9 @@ async function startServer() {
         });
     }
 
-    if (process.env.NODE_ENV !== 'test') {
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server running on http://localhost:${PORT}`);
-        });
-    }
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+    });
 }
 
 startServer();
-
-export default app;
