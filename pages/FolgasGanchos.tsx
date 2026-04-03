@@ -764,8 +764,8 @@ export default function FolgasGanchos({ data, theme, dbOp, notify, swaps, gancho
                                                     <div className="flex flex-col">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-bold">{driver}</span>
-                                                            {info.createdBy && info.createdBy !== 'Breno' && (
-                                                                <span className="text-[10px] opacity-40">por {info.createdBy}</span>
+                                                            {info.createdBy && (
+                                                                <span className="text-[10px] opacity-40">por {info.createdBy === 'Breno' ? 'Sistema' : info.createdBy}</span>
                                                             )}
                                                         </div>
                                                         <span className="opacity-60 italic">{info.motivo}</span>

@@ -1,6 +1,6 @@
 {
   "name": "Bora de Van (FINAL)",
-  "description": "Sistema de gestão de transporte, vans e passageiros.",
+  "description": "Sistema avançado de gestão de transporte com múltiplos sistemas (Pg, Mip, Sv, Mistura), segurança em tempo real, temas dinâmicos e gestão granular de usuários.",
   "requestFramePermissions": [
     "microphone",
     "geolocation"

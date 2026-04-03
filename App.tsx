@@ -665,6 +665,8 @@ const AppContent = () => {
         const logEntry = {
             username: user.username,
             sessionId: user.sessionId || '',
+            ip: user.ip || '',
+            deviceId: user.deviceId || '',
             action,
             details,
             timestamp: Date.now(),
@@ -850,33 +852,43 @@ const AppContent = () => {
                         
                         return; // Interrompe a 4ª exclusão
                     }
-                    
-                    if (!isAdminAuthorized) {
-                        // Salvar item no buffer antes de excluir para possível recuperação
-                        const currentPath = getPath(targetSystem, node);
-                        const snapshot = await db.ref(currentPath).child(payload).once('value');
-                        const itemData = snapshot.val();
-                        
-                        if (itemData) {
-                            setDeletedItemsBuffer(prev => [...prev, { system: targetSystem, node, id: payload, data: itemData }]);
-                            setDeletionCount(prev => prev + 1);
-                        }
-                    }
                 }
 
                 // Se o payload for o ID (string), verificamos se tem prefixo
                 let idToDelete = payload;
+                let deleteSystem = targetSystem;
+                let deleteId = idToDelete;
+
                 if (typeof idToDelete === 'string' && idToDelete.includes('_')) {
                     const parts = idToDelete.split('_');
                     if (['Pg', 'Mip', 'Sv'].includes(parts[0])) {
-                        const deleteSystem = parts[0];
-                        const deleteId = idToDelete.substring(parts[0].length + 1);
-                        const deletePath = getPath(deleteSystem, node);
-                        await db.ref(deletePath).child(deleteId).remove();
+                        deleteSystem = parts[0];
+                        deleteId = idToDelete.substring(parts[0].length + 1);
                     }
-                } else {
-                    await ref.child(idToDelete).remove();
                 }
+
+                const deletePath = getPath(deleteSystem, node);
+                const snapshot = await db.ref(deletePath).child(deleteId).once('value');
+                const itemData = snapshot.val();
+
+                if (itemData) {
+                    // Prepara a ação de desfazer
+                    const undoAction = async () => {
+                        await db.ref(deletePath).child(deleteId).set(itemData);
+                        notify("Item recuperado!", "success");
+                    };
+
+                    // Se for operador, salva no buffer de segurança
+                    if (user?.role === 'operador' && (node === 'passengers' || node === 'drivers') && !isAdminAuthorized) {
+                        setDeletedItemsBuffer(prev => [...prev, { system: deleteSystem, node, id: deleteId, data: itemData }]);
+                        setDeletionCount(prev => prev + 1);
+                    }
+
+                    // Aciona o banner de desfazer
+                    triggerUndo(undoAction, `Excluiu ${node === 'passengers' ? 'Passageiro' : node === 'drivers' ? 'Motorista' : 'Item'}`);
+                }
+
+                await db.ref(deletePath).child(deleteId).remove();
 
                 // Logging Deletions
                 if (node === 'passengers') logAction('Excluiu Passageiro', `ID: ${idToDelete}`);

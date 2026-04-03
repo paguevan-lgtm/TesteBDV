@@ -31,6 +31,9 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
         (currentUser.username === 'Breno' || (u.systems && u.systems.includes(systemContext)) || u.system === systemContext)
     );
 
+    const currentUserSystems = currentUser.username === 'Breno' ? ['Pg', 'Mip', 'Sv'] : (currentUser.systems || [currentUser.system || 'Pg']);
+    const canManageSystems = currentUser.username === 'Breno' || !isEditing || formUser.createdBy === currentUser.username;
+
     // Fetch subscriptions if admin
     useEffect(() => {
         if (currentUser.username !== 'Breno' || !db) return;
@@ -88,7 +91,25 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
         );
         if (exists) return notify(`O usuário ${formUser.username} já existe.`, "error");
 
+        // Security check: user can only allocate systems they have access to
+        if (currentUser.username !== 'Breno') {
+            const invalidSystems = formUser.systems.filter((sys: string) => !currentUserSystems.includes(sys));
+            if (invalidSystems.length > 0) {
+                return notify(`Você não tem permissão para alocar os sistemas: ${invalidSystems.join(', ')}`, "error");
+            }
+            
+            // Security check: only creator can edit
+            if (isEditing && formUser.createdBy !== currentUser.username) {
+                return notify("Você não tem permissão para editar este usuário.", "error");
+            }
+        }
+
         const userToSave = { ...formUser };
+        
+        if (!isEditing) {
+            userToSave.createdBy = currentUser.username;
+        }
+
         // We don't need the single 'system' field anymore, we use 'systems'
         // But for backward compatibility with existing logic that might expect 'system', we can set it to the first one
         if (userToSave.systems && userToSave.systems.length > 0) {
@@ -213,19 +234,28 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                                         </button>
                                     )}
                                     
-                                    <button 
-                                        onClick={() => handleEdit(u)}
-                                        className="p-3 bg-white/5 border border-white/10 rounded-2xl text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20 transition-all active:scale-90"
-                                    >
-                                        <Icons.Edit size={18} />
-                                    </button>
-                                    
-                                    <button 
-                                        onClick={() => handleDelete(u.id, u.username)}
-                                        className="p-3 bg-white/5 border border-white/10 rounded-2xl text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all active:scale-90"
-                                    >
-                                        <Icons.Trash size={18} />
-                                    </button>
+                                    {(currentUser.username === 'Breno' || u.createdBy === currentUser.username) && (
+                                        <>
+                                            <button 
+                                                onClick={() => handleEdit(u)}
+                                                className="p-3 bg-white/5 border border-white/10 rounded-2xl text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20 transition-all active:scale-90"
+                                            >
+                                                <Icons.Edit size={18} />
+                                            </button>
+                                            
+                                            <button 
+                                                onClick={() => handleDelete(u.id, u.username)}
+                                                className="p-3 bg-white/5 border border-white/10 rounded-2xl text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all active:scale-90"
+                                            >
+                                                <Icons.Trash size={18} />
+                                            </button>
+                                        </>
+                                    )}
+                                    {currentUser.username !== 'Breno' && u.createdBy !== currentUser.username && (
+                                        <div className="px-3 py-2 bg-white/5 border border-white/10 rounded-2xl text-[10px] opacity-40 font-bold uppercase">
+                                            Criado por: {u.createdBy === 'Breno' ? 'Sistema' : (u.createdBy || 'Sistema')}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )) : (
@@ -377,10 +407,13 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                                         <div className="grid grid-cols-3 gap-3">
                                             {['Pg', 'Mip', 'Sv'].map(sys => {
                                                 const isSelected = formUser.systems?.includes(sys);
+                                                const canSelectThisSystem = currentUserSystems.includes(sys);
+                                                const isDisabled = !canManageSystems || !canSelectThisSystem;
+
                                                 return (
                                                     <button
                                                         key={sys}
-                                                        disabled={currentUser.username !== 'Breno'}
+                                                        disabled={isDisabled}
                                                         onClick={() => {
                                                             const currentSystems = formUser.systems || [];
                                                             if (isSelected) {
@@ -394,7 +427,7 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                                                                 setFormUser({...formUser, systems: [...currentSystems, sys]});
                                                             }
                                                         }}
-                                                        className={`py-3 rounded-2xl border font-black text-sm transition-all ${isSelected ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/30' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'} ${currentUser.username !== 'Breno' && !isSelected ? 'opacity-20 cursor-not-allowed' : ''}`}
+                                                        className={`py-3 rounded-2xl border font-black text-sm transition-all ${isSelected ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/30' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'} ${isDisabled && !isSelected ? 'opacity-20 cursor-not-allowed' : ''} ${!canManageSystems && isSelected ? 'cursor-not-allowed opacity-80' : ''}`}
                                                     >
                                                         <div className="flex items-center justify-center gap-2">
                                                             {isSelected && <Icons.CheckCircle size={14} />}
@@ -404,8 +437,13 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
                                                 );
                                             })}
                                         </div>
-                                        {currentUser.username !== 'Breno' && (
-                                            <p className="text-[10px] opacity-40 font-bold mt-1 italic">Você só pode gerenciar usuários para o sistema {systemContext}.</p>
+                                        {!canManageSystems && (
+                                            <p className="text-[10px] text-amber-400 font-bold mt-1 italic">
+                                                Apenas o criador ({formUser.createdBy}) ou Breno podem alterar os sistemas deste usuário.
+                                            </p>
+                                        )}
+                                        {canManageSystems && currentUser.username !== 'Breno' && (
+                                            <p className="text-[10px] opacity-40 font-bold mt-1 italic">Você só pode alocar sistemas que você tem acesso ({currentUserSystems.join(', ')}).</p>
                                         )}
                                     </div>
 

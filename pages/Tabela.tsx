@@ -453,8 +453,8 @@ export default function Tabela({ data, theme, tableTab, setTableTab, mipDayType,
                                                         <button onClick={()=>{setEditName(driver.vaga); setTempName(driver.name); setTempVaga(driver.vaga)}} className="opacity-20 hover:opacity-100 transition-opacity hide-on-print"><Icons.Edit3 size={12}/></button>
                                                         <button onClick={() => removeVaga(driver.id, driver.vaga)} className="ml-2 text-red-500 opacity-50 hover:opacity-100 transition-opacity hide-on-print"><Icons.Trash size={12}/></button>
                                                     </div>
-                                                    {hasGancho && hasGancho.createdBy && hasGancho.createdBy !== 'Breno' && (
-                                                        <span className="text-[10px] opacity-40 -mt-1 hide-on-print">por {hasGancho.createdBy}</span>
+                                                    {hasGancho && hasGancho.createdBy && (
+                                                        <span className="text-[10px] opacity-40 -mt-1 hide-on-print">por {hasGancho.createdBy === 'Breno' ? 'Sistema' : hasGancho.createdBy}</span>
                                                     )}
                                                 </div>
                                             </>

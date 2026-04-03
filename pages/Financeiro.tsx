@@ -115,10 +115,9 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                     {canSeeRevenue && Object.keys(operatorTotals).length > 0 && (
                         <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-2">
                             {Object.entries(operatorTotals)
-                                .filter(([op]) => op !== 'Breno')
                                 .map(([op, val]) => (
                                 <div key={op} className="flex justify-between items-center text-sm">
-                                    <span className="opacity-60">{op}</span>
+                                    <span className="opacity-60">{op === 'Breno' ? 'Sistema' : op}</span>
                                     <span className="font-bold">R$ {formatCurrency(val)}</span>
                                 </div>
                             ))}
@@ -327,7 +326,7 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                             </div>
                                             {isPaid && (
                                                 <div className="text-[10px] text-green-500/70 font-medium">
-                                                    Recebido por {payment.receivedBy}
+                                                    Recebido por {payment.receivedBy === 'Breno' ? 'Sistema' : payment.receivedBy}
                                                 </div>
                                             )}
                                         </div>

@@ -8,8 +8,11 @@ import { getDeviceFingerprint, parseUserAgent, getHardwareInfo, getTodayDate } f
 interface User {
     username: string;
     role: string;
+    displayName: string;
     email?: string;
     system?: string;
+    systems?: string[];
+    createdBy?: string;
     sessionId?: string;
 }
 
@@ -335,7 +338,10 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                             userData = { 
                                 username: foundUser.username, 
                                 role: foundUser.role,
+                                displayName: foundUser.username === 'Breno' ? 'Sistema' : foundUser.username,
                                 system: foundUser.system,
+                                systems: foundUser.systems,
+                                createdBy: foundUser.createdBy,
                                 email: foundUser.email
                             };
                         }
@@ -353,28 +359,24 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                     (!system || u_item.systems.includes(system))
                 );
                 if (localUser) {
-                    userData = { username: u, role: localUser.role, system: system || localUser.systems[0] };
+                    userData = { 
+                        username: u, 
+                        role: localUser.role, 
+                        displayName: u === 'Breno' ? 'Sistema' : u,
+                        system: system || localUser.systems[0],
+                        systems: localUser.systems,
+                        createdBy: localUser.createdBy
+                    };
                 }
             }
 
             if (userData) {
                 let sessionId = '';
                 if (db && userData.username !== 'Breno') {
-                    try {
-                        const logRef = await db.ref('audit_logs').push({
-                            username: userData.username,
-                            action: 'Login',
-                            details: 'Acessando o sistema...',
-                            timestamp: Date.now(),
-                            date: getTodayDate()
-                        });
-                        sessionId = logRef.key || '';
-                    } catch (e) {
-                        console.error("Erro ao criar log de login:", e);
-                    }
+                    sessionId = db.ref('audit_logs').push().key || Date.now().toString();
                 }
 
-                const finalUser = { ...userData, sessionId };
+                const finalUser = { ...userData, sessionId, ip: currentIp, deviceId };
 
                 // Persistência
                 const now = Date.now();
@@ -429,22 +431,27 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                             }
                         }
 
-                        if (db) {
+                        if (db && finalUser.username !== 'Breno') {
+                            // 1. Timeline (Legado/Segurança)
                             const timelineRef = db.ref('access_timeline');
-                            
-                            // Adiciona novo log
                             await timelineRef.push(logData);
 
-                            // ATUALIZA LOGGING AUDITORIA COM IP (NOVO)
-                            if (finalUser.username !== 'Breno' && sessionId) {
-                                await db.ref(`audit_logs/${sessionId}`).update({
-                                    details: `Acessou o sistema via IP: ${logData.ip}`
+                            // 2. Audit Log (Unificado)
+                            if (sessionId) {
+                                await db.ref(`audit_logs/${sessionId}`).set({
+                                    ...logData,
+                                    action: 'Login',
+                                    details: `Sessão iniciada via ${logData.deviceInfo?.browser || 'Browser'} (${logData.ip})`,
+                                    sessionId: sessionId,
+                                    date: getTodayDate()
                                 });
                             }
-
-                            // AUTO-LIMPEZA: Manter apenas os últimos 50 registros
-                            try {
-                                const snap = await timelineRef.orderByKey().limitToLast(50).once('value');
+                        }
+                        
+                        // AUTO-LIMPEZA: Manter apenas os últimos 50 registros
+                        try {
+                            const timelineRef = db.ref('access_timeline');
+                            const snap = await timelineRef.orderByKey().limitToLast(50).once('value');
                                 if (snap.exists()) {
                                     let oldestKeyToKeep: string | null = null;
                                     // Firebase retorna em ordem (o primeiro da iteração é o mais antigo do grupo de 50)
@@ -466,10 +473,8 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                                     }
                                 }
                             } catch (cleanupErr) {
-                                console.warn("Erro na limpeza de logs:", cleanupErr);
-                            }
+                            console.warn("Erro na limpeza de logs:", cleanupErr);
                         }
-
                     } catch (err) {
                         console.error("Erro fatal no logging:", err);
                     }
@@ -504,16 +509,21 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                                     matchingUsers.push({
                                         username: user.username,
                                         role: user.role,
+                                        displayName: user.username === 'Breno' ? 'Sistema' : user.username,
                                         system: sys,
-                                        email: user.email
+                                        email: user.email,
+                                        systems: user.systems,
+                                        createdBy: user.createdBy
                                     });
                                 });
                             } else {
                                 matchingUsers.push({
                                     username: user.username,
                                     role: user.role,
+                                    displayName: user.username === 'Breno' ? 'Sistema' : user.username,
                                     system: user.system,
-                                    email: user.email
+                                    email: user.email,
+                                    createdBy: user.createdBy
                                 });
                             }
                         }
@@ -533,7 +543,10 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                         matchingUsers.push({
                             username: u,
                             role: localUser.role,
-                            system: sys
+                            displayName: u === 'Breno' ? 'Sistema' : u,
+                            system: sys,
+                            systems: localUser.systems,
+                            createdBy: localUser.createdBy
                         });
                     }
                 });

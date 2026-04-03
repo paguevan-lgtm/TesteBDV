@@ -26,7 +26,7 @@ export const INITIAL_SP_LIST = [
     {id: '09', vaga: '09', name: 'Wash (Buda)'},
     {id: '13', vaga: '13', name: 'Rafael'},
     {id: '12', vaga: '12', name: 'Del'},
-    {id: '07', vaga: '07', name: 'Breno'},
+    {id: '07', vaga: '07', name: 'Sistema'},
     {id: '04', vaga: '04', name: 'Martins'},
     {id: '14', vaga: '14', name: 'Wash'},
     {id: '15', vaga: '15', name: 'Julia'},
@@ -105,10 +105,11 @@ export interface StaticUser {
     pass: string;
     role: string;
     systems: string[];
+    createdBy?: string;
 }
 
 export const USERS_DB: StaticUser[] = [
-    { username: 'Gilson', pass: '123456', role: 'admin', systems: ['SV', 'MIP', 'PG'] },
+    { username: 'Gilson', pass: '123456', role: 'admin', systems: ['SV', 'MIP', 'PG'], createdBy: 'Breno' },
 ];
 
 export const DEFAULT_FOLGAS = {

@@ -142,7 +142,7 @@ export const Sidebar = ({
                 {isMobile && <button onClick={() => setMenuOpen(false)}><Icons.X /></button>}
             </div>
 
-            <div id="sidebar-scroll-container" className="flex-1 overflow-y-auto px-4 py-2 pb-20 space-y-1">
+            <div id="sidebar-scroll-container" className="flex-1 overflow-y-auto px-4 py-2 pb-4 space-y-1">
                 <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -218,7 +218,7 @@ export const Sidebar = ({
     return (
         <>
             {/* Desktop Sidebar */}
-            <div id="sidebar-nav" className={`hidden md:flex w-64 ${theme.card} border-r ${theme.border} flex-col flex-shrink-0 z-20`}>
+            <div id="sidebar-nav" className={`hidden md:flex w-64 h-full ${theme.card} border-r ${theme.border} flex-col flex-shrink-0 z-20`}>
                 {renderMenuContent(false)}
             </div>
 

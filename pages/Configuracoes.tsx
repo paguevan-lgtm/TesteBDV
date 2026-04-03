@@ -502,13 +502,16 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                             <div className={`absolute bottom-0 right-0 w-6 h-6 bg-green-500 border-4 ${themeKey === 'solar' ? 'border-white' : 'border-slate-900'} rounded-full`}></div>
                         </div>
                         <div>
-                            <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${themeKey === 'solar' ? theme.text : 'text-white'}`}>{user.username}</h2>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
-                                    {user.role === 'admin' ? 'Coordenação' : user.role}
-                                </span>
-                                <span className="text-xs opacity-50">•</span>
-                                <span className="text-xs opacity-50">Renova em: {daysRemaining}</span>
+                            <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${themeKey === 'solar' ? theme.text : 'text-white'}`}>
+                                {user.displayName || user.username || 'Usuário'}
+                            </h2>
+                            <div className="flex flex-col gap-1.5 mt-2">
+                                <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
+                                        {user.role === 'admin' ? 'Coordenação' : (user.role === 'operador' ? 'Operador' : user.role)}
+                                    </span>
+                                </div>
+                                <span className="text-xs opacity-50 font-medium">Renova em: {daysRemaining}</span>
                             </div>
                         </div>
                     </div>
@@ -1076,55 +1079,57 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                             </div>
 
                             {/* TIMELINE DE ACESSOS */}
-                            <div className={`${theme.card} p-6 rounded-3xl border ${theme.border} shadow-lg`}>
-                                <div className="flex items-center justify-between mb-4">
-                                    <h4 className={`font-bold ${theme.text} uppercase tracking-widest text-xs flex items-center gap-2`}><Icons.Shield size={14}/> Segurança</h4>
-                                    <div className={`flex ${theme.inner} p-1 rounded-lg`}>
-                                        <button onClick={()=>setSecurityTab('timeline')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='timeline' ? `${theme.primary} text-white shadow-sm` : 'opacity-40'}`}>Timeline</button>
-                                        <button onClick={()=>setSecurityTab('blocked')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='blocked' ? 'bg-red-500/20 text-red-400 shadow-sm' : 'opacity-40'}`}>Bloqueados</button>
+                            {isSuperAdmin && (
+                                <div className={`${theme.card} p-6 rounded-3xl border ${theme.border} shadow-lg`}>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className={`font-bold ${theme.text} uppercase tracking-widest text-xs flex items-center gap-2`}><Icons.Shield size={14}/> Segurança</h4>
+                                        <div className={`flex ${theme.inner} p-1 rounded-lg`}>
+                                            <button onClick={()=>setSecurityTab('timeline')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='timeline' ? `${theme.primary} text-white shadow-sm` : 'opacity-40'}`}>Timeline</button>
+                                            <button onClick={()=>setSecurityTab('blocked')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${securityTab==='blocked' ? 'bg-red-500/20 text-red-400 shadow-sm' : 'opacity-40'}`}>Bloqueados</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2">
+                                        {securityTab === 'timeline' ? ipHistory.slice(0, 20).map((log:any) => {
+                                            const isBanned = blockedList.some(b => b.id === log.deviceId);
+                                            const isTrusted = trustedDevices[log.deviceId];
+                                            return (
+                                                <div 
+                                                    key={log.id} 
+                                                    onClick={() => setSelectedLog(log)}
+                                                    className={`p-3 rounded-xl border flex justify-between items-center group cursor-pointer transition-all hover:scale-[1.01] ${isTrusted ? 'bg-green-500/10 border-green-500/20' : `${theme.inner} border-transparent`}`}
+                                                >
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-xs font-bold truncate ${isTrusted ? 'text-green-400' : theme.text}`}>{log.username}</span>
+                                                            {isTrusted && <Icons.Check size={10} className="text-green-500" />}
+                                                            <span className="text-[9px] opacity-30">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                                        </div>
+                                                        <div className="text-[9px] opacity-40 truncate">{log.deviceInfo?.browser || 'Browser'} • {log.deviceId?.substring(0,8)}</div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {isTrusted && <span className="text-[8px] font-bold text-green-500/60 uppercase tracking-tighter">Seguro</span>}
+                                                        {!isBanned && log.deviceId && (
+                                                            <button 
+                                                                onClick={(e)=>{ e.stopPropagation(); banDevice(log.deviceId, 'Ban Admin', log); }} 
+                                                                className="opacity-0 group-hover:opacity-100 text-[9px] bg-red-500/20 text-red-400 px-2 py-1 rounded transition-all"
+                                                            >
+                                                                Banir
+                                                            </button>
+                                                        )}
+                                                        {isBanned && <Icons.Slash size={12} className="text-red-500" />}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }) : blockedList.map((dev:any) => (
+                                            <div key={dev.id} className={`bg-red-900/10 p-3 rounded-xl border border-red-500/20 flex justify-between items-center`}>
+                                                <div className="text-[10px] font-mono text-red-200">{dev.id.substring(0,16)}...</div>
+                                                <IconButton theme={theme} onClick={()=>unbanDevice(dev.id)} icon={Icons.Check} size={14} variant="success" />
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                                
-                                <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2">
-                                    {securityTab === 'timeline' ? ipHistory.slice(0, 20).map((log:any) => {
-                                        const isBanned = blockedList.some(b => b.id === log.deviceId);
-                                        const isTrusted = trustedDevices[log.deviceId];
-                                        return (
-                                            <div 
-                                                key={log.id} 
-                                                onClick={() => setSelectedLog(log)}
-                                                className={`p-3 rounded-xl border flex justify-between items-center group cursor-pointer transition-all hover:scale-[1.01] ${isTrusted ? 'bg-green-500/10 border-green-500/20' : `${theme.inner} border-transparent`}`}
-                                            >
-                                                <div className="min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`text-xs font-bold truncate ${isTrusted ? 'text-green-400' : theme.text}`}>{log.username}</span>
-                                                        {isTrusted && <Icons.Check size={10} className="text-green-500" />}
-                                                        <span className="text-[9px] opacity-30">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                                                    </div>
-                                                    <div className="text-[9px] opacity-40 truncate">{log.deviceInfo?.browser || 'Browser'} • {log.deviceId?.substring(0,8)}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {isTrusted && <span className="text-[8px] font-bold text-green-500/60 uppercase tracking-tighter">Seguro</span>}
-                                                    {!isBanned && log.deviceId && (
-                                                        <button 
-                                                            onClick={(e)=>{ e.stopPropagation(); banDevice(log.deviceId, 'Ban Admin', log); }} 
-                                                            className="opacity-0 group-hover:opacity-100 text-[9px] bg-red-500/20 text-red-400 px-2 py-1 rounded transition-all"
-                                                        >
-                                                            Banir
-                                                        </button>
-                                                    )}
-                                                    {isBanned && <Icons.Slash size={12} className="text-red-500" />}
-                                                </div>
-                                            </div>
-                                        );
-                                    }) : blockedList.map((dev:any) => (
-                                        <div key={dev.id} className={`bg-red-900/10 p-3 rounded-xl border border-red-500/20 flex justify-between items-center`}>
-                                            <div className="text-[10px] font-mono text-red-200">{dev.id.substring(0,16)}...</div>
-                                            <IconButton theme={theme} onClick={()=>unbanDevice(dev.id)} icon={Icons.Check} size={14} variant="success" />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -1170,7 +1175,9 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                     // Agrupamento por sessionId (novo) ou por Usuário+Data+Hora (legado)
                                     const dateObj = new Date(log.timestamp);
                                     const hourKey = `${log.username}-${log.date}-${dateObj.getHours()}`;
-                                    const sId = log.sessionId || `legacy-${hourKey}`;
+                                    
+                                    // Se for Login, o ID é o próprio sessionId. Se for ação, usa o sessionId gravado.
+                                    const sId = log.action === 'Login' ? log.id : (log.sessionId || `legacy-${hourKey}`);
                                     
                                     if (!groups[sId]) groups[sId] = { login: null, actions: [] };
                                     
@@ -1209,7 +1216,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2">
                                                         <span className={`font-bold text-sm ${theme.accent}`}>{mainLog.username}</span>
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter ${group.login ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter bg-green-500/20 text-green-400`}>
                                                             Sessão Iniciada
                                                         </span>
                                                         {hasActions && (
@@ -1218,16 +1225,23 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className={`text-sm ${theme.text} opacity-70 mt-0.5`}>
-                                                        {group.login ? group.login.details : `Atividade registrada às ${formatTime(mainLog.timestamp)}`}
-                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className={`text-sm ${theme.text} opacity-70`}>
+                                                            {group.login ? group.login.details : `Atividade registrada às ${formatTime(mainLog.timestamp)}`}
+                                                        </p>
+                                                        {group.login?.ip && (
+                                                            <span className="text-[10px] opacity-40 font-mono">({group.login.ip})</span>
+                                                        )}
+                                                    </div>
                                                 </div>
 
-                                                {hasActions && (
-                                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
-                                                        <Icons.ChevronDown size={20} className="opacity-30" />
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {hasActions && (
+                                                        <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                            <Icons.ChevronDown size={20} className="opacity-30" />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {/* Expanded Actions */}
@@ -1332,28 +1346,30 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 </div>
                             </div>
 
-                            <div className="pt-2 flex gap-3">
-                                <button 
-                                    onClick={() => toggleTrustDevice(selectedLog.deviceId, selectedLog.deviceInfo)}
-                                    className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                                        trustedDevices[selectedLog.deviceId]
-                                        ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20'
-                                        : 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'
-                                    }`}
-                                >
-                                    {trustedDevices[selectedLog.deviceId] ? <Icons.X size={16}/> : <Icons.Check size={16}/>}
-                                    {trustedDevices[selectedLog.deviceId] ? 'Remover Seguro' : 'Marcar como Seguro'}
-                                </button>
-                                
-                                {!blockedList.some(b => b.id === selectedLog.deviceId) && (
+                            {isSuperAdmin && (
+                                <div className="pt-2 flex gap-3">
                                     <button 
-                                        onClick={() => banDevice(selectedLog.deviceId, 'Ban Admin', selectedLog)}
-                                        className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                                        onClick={() => toggleTrustDevice(selectedLog.deviceId, selectedLog.deviceInfo)}
+                                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                                            trustedDevices[selectedLog.deviceId]
+                                            ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20'
+                                            : 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'
+                                        }`}
                                     >
-                                        Banir
+                                        {trustedDevices[selectedLog.deviceId] ? <Icons.X size={16}/> : <Icons.Check size={16}/>}
+                                        {trustedDevices[selectedLog.deviceId] ? 'Remover Seguro' : 'Marcar como Seguro'}
                                     </button>
-                                )}
-                            </div>
+                                    
+                                    {!blockedList.some(b => b.id === selectedLog.deviceId) && (
+                                        <button 
+                                            onClick={() => banDevice(selectedLog.deviceId, 'Ban Admin', selectedLog)}
+                                            className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                                        >
+                                            Banir
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
