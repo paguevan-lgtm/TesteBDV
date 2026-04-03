@@ -296,7 +296,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                         const matchingUsers: any[] = [];
                         
                         allUsers.forEach(user => {
-                            if (user.username.toLowerCase() === u.toLowerCase() && user.pass === p) {
+                            if (user && user.username && user.pass && user.username.toLowerCase() === u.toLowerCase() && user.pass === p) {
                                 if (user.systems && Array.isArray(user.systems)) {
                                     user.systems.forEach((sys: string) => {
                                         matchingUsers.push({ ...user, system: sys });
@@ -460,7 +460,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                 if (users) {
                     Object.keys(users).forEach(key => {
                         const user = users[key];
-                        if (user.username.toLowerCase() === u.toLowerCase() && user.pass === p) {
+                        if (user && user.username && user.pass && user.username.toLowerCase() === u.toLowerCase() && user.pass === p) {
                             if (user.systems && Array.isArray(user.systems)) {
                                 user.systems.forEach((sys: string) => {
                                     matchingUsers.push({
