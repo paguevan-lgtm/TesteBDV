@@ -64,7 +64,13 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ session_id: sessionId })
             })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`Server error: ${text.substring(0, 50)}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.success) {
                     if (data.needsFrontendUpdate) {
@@ -173,6 +179,8 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.uid, systemContext })
+            }).then(res => {
+                if (!res.ok) console.warn("Sync subscription failed with status:", res.status);
             }).catch(err => console.error("Sync error:", err));
         }
     }, [user.uid, systemContext]);
@@ -360,6 +368,12 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
                 body: JSON.stringify({ email, userId: user.username, systemContext })
             });
             
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Server error response:', text);
+                throw new Error('Erro no servidor ao criar assinatura.');
+            }
+
             const data = await response.json();
             if (data.error) {
                 throw new Error(data.error);

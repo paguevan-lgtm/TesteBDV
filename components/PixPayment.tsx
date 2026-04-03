@@ -15,6 +15,13 @@ const PixForm = ({ amount, userId, systemContext, email }: any) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount, userId, systemContext, email })
             });
+            
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Server error response:', text);
+                throw new Error('O servidor retornou um erro. Tente novamente mais tarde.');
+            }
+
             const data = await response.json();
             
             if (data.qrCodeBase64) {
@@ -22,9 +29,9 @@ const PixForm = ({ amount, userId, systemContext, email }: any) => {
             } else {
                 throw new Error('Failed to generate PIX');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            setError('Erro ao processar PIX. Tente novamente.');
+            setError(err.message || 'Erro ao processar PIX. Tente novamente.');
         } finally {
             setLoading(false);
         }

@@ -6,6 +6,7 @@ import { getDeviceFingerprint, parseUserAgent, getHardwareInfo, getTodayDate } f
 
 // Tipagem do Usuário
 interface User {
+    uid: string;
     username: string;
     role: string;
     displayName: string;
@@ -24,8 +25,6 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (u: string, p: string, coords: any, system?: string) => Promise<boolean>;
-    requestOtp: (u: string, p: string) => Promise<{ success: boolean; maskedEmail?: string; error?: string }>;
-    verifyOtp: (u: string, otp: string) => Promise<{ success: boolean; error?: string }>;
     findUsersByCredentials: (u: string, p: string) => Promise<User[]>;
     logout: (reason?: string) => void;
     updateActivity: () => void;
@@ -194,36 +193,6 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
         return R * c;
     };
 
-    const requestOtp = async (u: string, p: string) => {
-        try {
-            const res = await fetch('/api/request-otp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: u, password: p })
-            });
-            const data = await res.json();
-            return data;
-        } catch (error: any) {
-            console.error("Error requesting OTP:", error);
-            return { success: false, error: error.message };
-        }
-    };
-
-    const verifyOtp = async (u: string, otp: string) => {
-        try {
-            const res = await fetch('/api/verify-otp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: u, otp })
-            });
-            const data = await res.json();
-            return data;
-        } catch (error: any) {
-            console.error("Error verifying OTP:", error);
-            return { success: false, error: error.message };
-        }
-    };
-
     // 2. Função de Login (DB First, Fallback to Constant)
     const login = async (u: string, p: string, coords: any, system?: string): Promise<boolean> => {
         try {
@@ -233,31 +202,8 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
             const gpuInfo = getHardwareInfo();
             const currentDeviceInfo = { ...uaInfo, gpu: gpuInfo };
             
-            let currentIp = 'Detectando...';
-            try {
-                const ipReq = await fetch('https://api.ipify.org?format=json');
-                const ipRes = await ipReq.json();
-                if (ipRes.ip) currentIp = ipRes.ip;
-            } catch (e) {
-                console.warn("Falha ao obter IP", e);
-            }
-
+            let currentIp = '0.0.0.0';
             let currentLocation: any = { coords: { lat: coords?.latitude, lng: coords?.longitude } };
-            if (coords && coords.latitude && coords.longitude) {
-                try {
-                    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`;
-                    const geoReq = await fetch(url, { headers: { 'User-Agent': 'BoraDeVanApp/1.0' } });
-                    const geoRes = await geoReq.json();
-                    if (geoRes && geoRes.address) {
-                        currentLocation = {
-                            exact_address: geoRes.address, 
-                            display_name: geoRes.display_name,
-                            city: geoRes.address.city || geoRes.address.town || geoRes.address.village || geoRes.address.municipality || '',
-                            coords: { lat: coords.latitude, lng: coords.longitude }
-                        };
-                    }
-                } catch (e) {}
-            }
 
             // --- SECURITY CHECK (FINGERPRINT ROBUSTO, IP & SIMILARITY) ---
             if (db) {
@@ -275,7 +221,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                         const blocked = blockedDevices[key];
                         
                         // Check IP match
-                        if (blocked.ip && blocked.ip === currentIp && currentIp !== 'Detectando...') {
+                        if (blocked.ip && blocked.ip === currentIp && currentIp !== '0.0.0.0') {
                             return false;
                         }
 
@@ -370,6 +316,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
 
                         if (foundUser) {
                             userData = { 
+                                uid: foundUser.id || foundUser.uid,
                                 username: foundUser.username, 
                                 role: foundUser.role,
                                 displayName: foundUser.username === 'Breno' ? 'Sistema' : foundUser.username,
@@ -394,6 +341,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                 );
                 if (localUser) {
                     userData = { 
+                        uid: 'local_' + u,
                         username: u, 
                         role: localUser.role, 
                         displayName: u === 'Breno' ? 'Sistema' : u,
@@ -429,40 +377,15 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                         const logData: any = {
                             username: finalUser.username,
                             timestamp: Date.now(),
-                            ip: 'Detectando...',
+                            ip: '0.0.0.0', // Simplificado para evitar fetch externo
                             device: navigator.userAgent,
                             deviceId: deviceId, 
                             deviceInfo: { ...uaInfo, gpu: gpuInfo } // Adds GPU info to logs
                         };
 
-                        // 1. Obter IP Público
-                        try {
-                            const ipReq = await fetch('https://api.ipify.org?format=json');
-                            const ipRes = await ipReq.json();
-                            if (ipRes.ip) logData.ip = ipRes.ip;
-                        } catch (e) {
-                            console.warn("Falha ao obter IP", e);
-                        }
-
-                        // 2. Geocodificação Reversa (Coords -> Endereço)
+                        // Geocodificação Reversa (Coords -> Endereço) - Simplificado para usar apenas coords se disponíveis
                         if (coords && coords.latitude && coords.longitude) {
-                            try {
-                                const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`;
-                                const geoReq = await fetch(url, { headers: { 'User-Agent': 'BoraDeVanApp/1.0' } });
-                                const geoRes = await geoReq.json();
-
-                                if (geoRes && geoRes.address) {
-                                    logData.location = {
-                                        exact_address: geoRes.address, 
-                                        display_name: geoRes.display_name,
-                                        coords: { lat: coords.latitude, lng: coords.longitude }
-                                    };
-                                } else {
-                                    logData.location = { coords: { lat: coords.latitude, lng: coords.longitude } };
-                                }
-                            } catch (e) {
-                                logData.location = { coords: { lat: coords.latitude, lng: coords.longitude } };
-                            }
+                            logData.location = { coords: { lat: coords.latitude, lng: coords.longitude } };
                         }
 
                         if (db && finalUser.username !== 'Breno') {
@@ -541,6 +464,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                             if (user.systems && Array.isArray(user.systems)) {
                                 user.systems.forEach((sys: string) => {
                                     matchingUsers.push({
+                                        uid: key,
                                         username: user.username,
                                         role: user.role,
                                         displayName: user.username === 'Breno' ? 'Sistema' : user.username,
@@ -552,6 +476,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                                 });
                             } else {
                                 matchingUsers.push({
+                                    uid: key,
                                     username: user.username,
                                     role: user.role,
                                     displayName: user.username === 'Breno' ? 'Sistema' : user.username,
@@ -575,6 +500,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
                     const alreadyAdded = matchingUsers.some(mu => mu.username === u && mu.system === sys);
                     if (!alreadyAdded) {
                         matchingUsers.push({
+                            uid: 'local_' + u,
                             username: u,
                             role: localUser.role,
                             displayName: u === 'Breno' ? 'Sistema' : u,
@@ -596,8 +522,6 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
             isAuthenticated: !!user, 
             isLoading, 
             login, 
-            requestOtp,
-            verifyOtp,
             findUsersByCredentials,
             logout, 
             updateActivity, 

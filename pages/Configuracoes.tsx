@@ -1139,10 +1139,13 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                                 if (response.ok) {
                                                                     notify(`Assinatura ${sys} cancelada com sucesso!`, "success");
                                                                 } else {
-                                                                    notify("Erro ao cancelar assinatura.", "error");
+                                                                    const errorText = await response.text();
+                                                                    console.error('Erro ao cancelar assinatura:', errorText);
+                                                                    notify(`Erro ao cancelar assinatura: ${errorText}`, "error");
                                                                 }
-                                                            } catch (error) {
-                                                                notify("Erro ao cancelar assinatura.", "error");
+                                                            } catch (error: any) {
+                                                                console.error('Erro de rede ao cancelar assinatura:', error);
+                                                                notify(`Erro de rede ao cancelar assinatura: ${error.message}`, "error");
                                                             }
                                                         });
                                                     }}
