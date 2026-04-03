@@ -1,5 +1,7 @@
 
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Icons, Input, Button } from './Shared';
 import { getTodayDate } from '../utils';
 import { BAIRROS, BAIRROS_MIP } from '../constants';
@@ -75,11 +77,20 @@ export const GlobalModals = ({
                         <div className="bg-white/5 rounded-xl p-4 border border-white/10 mb-6">
                             <h3 className="font-bold text-lg mb-2">{latestNews.title}</h3>
                             {latestNews.image && (
-                                <div className="mb-4 rounded-lg overflow-hidden border border-white/10">
-                                    <img src={latestNews.image} alt="Update" className="w-full h-auto object-cover" />
+                                <div className="mb-4 rounded-lg overflow-hidden border border-white/10 flex justify-center bg-black/20">
+                                    <img 
+                                        src={latestNews.image} 
+                                        alt="Update" 
+                                        className="max-w-full max-h-[40vh] object-contain" 
+                                        referrerPolicy="no-referrer"
+                                    />
                                 </div>
                             )}
-                            <p className="text-sm opacity-90 whitespace-pre-wrap leading-relaxed">{latestNews.content}</p>
+                            <div className="markdown-news">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {latestNews.content}
+                                </ReactMarkdown>
+                            </div>
                         </div>
                         
                         <Button theme={theme} onClick={markNewsAsSeen} className="w-full">Entendi</Button>

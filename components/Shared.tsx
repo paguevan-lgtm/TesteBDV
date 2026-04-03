@@ -80,6 +80,8 @@ export const Icons = {
     LogOut: (p:any) => <Icon {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></Icon>,
     Shield: (p:any) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></Icon>,
     List: (p:any) => <Icon {...p}><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></Icon>,
+    Bold: (p:any) => <Icon {...p}><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></Icon>,
+    Italic: (p:any) => <Icon {...p}><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></Icon>,
     CheckCircle: (p:any) => <Icon {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></Icon>,
     Edit3: (p:any) => <Icon {...p}><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></Icon>,
     ArrowUp: (p:any) => <Icon {...p}><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></Icon>,
@@ -444,34 +446,45 @@ export const PersistentNotifications = ({ notifications, onClose }: any) => {
     );
 };
 
-export const Toast = ({ message, type, visible }: any) => {
+export const Toast = ({ message, type, visible, image }: any) => {
     return (
         <AnimatePresence>
             {visible && (
-                <motion.div 
-                    initial={{ opacity: 0, y: -40, x: '-50%', scale: 0.8 }}
-                    animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
-                    exit={{ opacity: 0, y: -40, x: '-50%', scale: 0.8 }}
-                    className={`fixed top-8 left-1/2 z-[9999] px-6 py-4 rounded-[32px] shadow-2xl flex items-center gap-4 text-white font-bold text-sm backdrop-blur-2xl border border-white/10 min-w-[300px] max-w-[90vw]`}
-                    style={{
-                        background: type === 'success' ? 'rgba(16, 185, 129, 0.85)' : 
-                                    type === 'error' ? 'rgba(239, 68, 68, 0.85)' : 
-                                    'rgba(59, 130, 246, 0.85)',
-                        boxShadow: type === 'success' ? '0 20px 40px -10px rgba(16, 185, 129, 0.3)' :
-                                   type === 'error' ? '0 20px 40px -10px rgba(239, 68, 68, 0.3)' :
-                                   '0 20px 40px -10px rgba(59, 130, 246, 0.3)'
-                    }}
-                >
-                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
-                        {type === 'success' && <Icons.CheckCircle size={22}/>}
-                        {type === 'error' && <Icons.X size={22}/>}
-                        {type === 'info' && <Icons.Bell size={22}/>}
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-0.5 font-black">Sistema</p>
-                        <p className="text-sm leading-tight font-black">{message}</p>
-                    </div>
-                </motion.div>
+                <div className="fixed top-8 left-0 right-0 z-[9999] flex justify-center pointer-events-none px-4">
+                    <motion.div 
+                        initial={{ opacity: 0, y: -40, scale: 0.8 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -40, scale: 0.8 }}
+                        className="pointer-events-auto px-6 py-4 rounded-[32px] shadow-2xl flex items-center gap-4 text-white font-bold text-sm backdrop-blur-2xl border border-white/10 min-w-[300px] max-w-full"
+                        style={{
+                            background: type === 'success' ? 'rgba(16, 185, 129, 0.85)' : 
+                                        type === 'error' ? 'rgba(239, 68, 68, 0.85)' : 
+                                        type === 'warning' ? 'rgba(245, 158, 11, 0.85)' :
+                                        'rgba(59, 130, 246, 0.85)',
+                            boxShadow: type === 'success' ? '0 20px 40px -10px rgba(16, 185, 129, 0.3)' :
+                                       type === 'error' ? '0 20px 40px -10px rgba(239, 68, 68, 0.3)' :
+                                       type === 'warning' ? '0 20px 40px -10px rgba(245, 158, 11, 0.3)' :
+                                       '0 20px 40px -10px rgba(59, 130, 246, 0.3)'
+                        }}
+                    >
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-inner overflow-hidden">
+                            {image ? (
+                                <img src={image} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                                <>
+                                    {type === 'success' && <Icons.CheckCircle size={22}/>}
+                                    {type === 'error' && <Icons.X size={22}/>}
+                                    {type === 'warning' && <Icons.Bell size={22}/>}
+                                    {type === 'info' && <Icons.Bell size={22}/>}
+                                </>
+                            )}
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-0.5 font-black">Sistema</p>
+                            <p className="text-sm leading-tight font-black">{message}</p>
+                        </div>
+                    </motion.div>
+                </div>
             )}
         </AnimatePresence>
     );

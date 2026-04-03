@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
+    "start": "node server.js",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
@@ -23,8 +24,11 @@
     "express": "^5.2.1",
     "firebase-admin": "^13.7.0",
     "motion": "^12.38.0",
+    "node-fetch": "^3.3.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "stripe": "^20.4.1",
     "uuid": "^13.0.0"
   },

@@ -7,11 +7,12 @@ import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, theme?: any }) => {
-    const { login, findUsersByCredentials, logoutReason, setLogoutReason } = useAuth(); 
+    const { login, findUsersByCredentials, logoutReason, setLogoutReason, requestOtp, verifyOtp } = useAuth(); 
     const theme = appTheme || THEMES.default;
     
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
     const [geoStatus, setGeoStatus] = useState('');
     
@@ -19,6 +20,10 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
     const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [logoutModalMessage, setLogoutModalMessage] = useState('');
+
+    // OTP State
+    const [showOtpInput, setShowOtpInput] = useState(false);
+    const [maskedEmail, setMaskedEmail] = useState('');
 
     // Multi-system selection
     const [matchingUsers, setMatchingUsers] = useState<any[]>([]);
@@ -81,20 +86,54 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 return;
             }
 
-            if (users.length > 1) {
-                setMatchingUsers(users);
-                setShowSystemSelection(true);
+            // Request OTP
+            const otpRes = await requestOtp(username, password);
+            if (otpRes.success) {
+                setMaskedEmail(otpRes.maskedEmail);
+                setShowOtpInput(true);
                 setLoading(false);
-                return;
+                notify("Token enviado para seu e-mail!", "success");
+            } else {
+                setLoading(false);
+                notify(otpRes.error || "Erro ao enviar token.", "error");
             }
-
-            // Apenas um usuário encontrado
-            setLoading(false);
-            startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
         } catch (error) {
             console.error("Erro no pre-login:", error);
             setLoading(false);
             notify("Erro ao processar login.", "error");
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (!otp) return notify("Digite o token recebido", "error");
+        setLoading(true);
+
+        try {
+            const verifyRes = await verifyOtp(username, otp);
+            if (verifyRes.success) {
+                // OTP Verified, now check systems
+                const users = await findUsersByCredentials(username, password);
+                
+                if (users.length > 1) {
+                    setMatchingUsers(users);
+                    setShowSystemSelection(true);
+                    setLoading(false);
+                    setShowOtpInput(false);
+                    return;
+                }
+
+                // Only one user, complete login
+                setShowOtpInput(false);
+                setLoading(false);
+                startEntrySequence({ latitude: 0, longitude: 0, accuracy: 0 });
+            } else {
+                setLoading(false);
+                notify(verifyRes.error || "Token inválido ou expirado.", "error");
+            }
+        } catch (error) {
+            console.error("Erro ao verificar OTP:", error);
+            setLoading(false);
+            notify("Erro ao verificar token.", "error");
         }
     };
 
@@ -278,47 +317,100 @@ export const LoginScreen = ({ onBack, theme: appTheme }: { onBack?: () => void, 
                 }}
                 transition={{ duration: 0.5 }}
             >
-                <div onFocus={() => setFocusField('user')} onBlur={() => setFocusField(null)}>
-                    <Input 
-                        theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
-                        label="ID Operador" 
-                        value={username} 
-                        onChange={(e:any) => { setUsername(e.target.value); handleTyping(); }} 
-                        autoCapitalize="none"
-                        placeholder="Seu usuário"
-                    />
-                </div>
-                <div onFocus={() => setFocusField('pass')} onBlur={() => setFocusField(null)}>
-                    <Input 
-                        theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
-                        label="Chave de Acesso" 
-                        type="password" 
-                        value={password} 
-                        onChange={(e:any) => { setPassword(e.target.value); handleTyping(); }} 
-                        placeholder="••••••"
-                    />
-                </div>
-                
-                {geoStatus && (
-                    <motion.p 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-[10px] uppercase tracking-widest text-center text-amber-400 font-black"
-                    >
-                        {geoStatus}
-                    </motion.p>
-                )}
+                {!showOtpInput ? (
+                    <>
+                        <div onFocus={() => setFocusField('user')} onBlur={() => setFocusField(null)}>
+                            <Input 
+                                theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
+                                label="ID Operador" 
+                                value={username} 
+                                onChange={(e:any) => { setUsername(e.target.value); handleTyping(); }} 
+                                autoCapitalize="none"
+                                placeholder="Seu usuário"
+                            />
+                        </div>
+                        <div onFocus={() => setFocusField('pass')} onBlur={() => setFocusField(null)}>
+                            <Input 
+                                theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
+                                label="Chave de Acesso" 
+                                type="password" 
+                                value={password} 
+                                onChange={(e:any) => { setPassword(e.target.value); handleTyping(); }} 
+                                placeholder="••••••"
+                            />
+                        </div>
+                        
+                        {geoStatus && (
+                            <motion.p 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="text-[10px] uppercase tracking-widest text-center text-amber-400 font-black"
+                            >
+                                {geoStatus}
+                            </motion.p>
+                        )}
 
-                <Button 
-                    onClick={handlePreLogin}
-                    disabled={loading}
-                    loading={loading}
-                    variant="primary"
-                    theme={{ primary: 'bg-amber-500 text-slate-950', radius: 'rounded-xl' }}
-                    className="w-full font-black italic uppercase tracking-widest py-4 shadow-[0_0_30px_rgba(251,191,36,0.3)] transition-all transform hover:scale-[1.02] active:scale-[0.98] mt-4"
-                >
-                    Iniciar Viagem
-                </Button>
+                        <Button 
+                            onClick={handlePreLogin}
+                            disabled={loading}
+                            loading={loading}
+                            variant="primary"
+                            theme={{ primary: 'bg-amber-500 text-slate-950', radius: 'rounded-xl' }}
+                            className="w-full font-black italic uppercase tracking-widest py-4 shadow-[0_0_30px_rgba(251,191,36,0.3)] transition-all transform hover:scale-[1.02] active:scale-[0.98] mt-4"
+                        >
+                            Iniciar Viagem
+                        </Button>
+                    </>
+                ) : (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-6"
+                    >
+                        <div className="text-center space-y-2">
+                            <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto text-amber-500 mb-4">
+                                <Icons.Mail size={32} />
+                            </div>
+                            <h2 className="text-xl font-black uppercase italic tracking-tight">Verificação de Segurança</h2>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                                Enviamos um token para o e-mail:<br/>
+                                <span className="text-amber-500 font-mono font-bold">{maskedEmail}</span>
+                            </p>
+                        </div>
+
+                        <div onFocus={() => setFocusField('pass')} onBlur={() => setFocusField(null)}>
+                            <Input 
+                                theme={{text: 'text-white', radius: 'rounded-xl', border: 'border-white/10'}} 
+                                label="Token de Acesso" 
+                                value={otp} 
+                                onChange={(e:any) => { setOtp(e.target.value); handleTyping(); }} 
+                                placeholder="Digite o código de 6 dígitos"
+                                maxLength={6}
+                                className="text-center text-2xl tracking-[0.5em] font-black"
+                            />
+                        </div>
+
+                        <div className="space-y-3">
+                            <Button 
+                                onClick={handleVerifyOtp}
+                                disabled={loading}
+                                loading={loading}
+                                variant="primary"
+                                theme={{ primary: 'bg-amber-500 text-slate-950', radius: 'rounded-xl' }}
+                                className="w-full font-black italic uppercase tracking-widest py-4 shadow-[0_0_30px_rgba(251,191,36,0.3)] transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                Confirmar Token
+                            </Button>
+
+                            <button 
+                                onClick={() => setShowOtpInput(false)}
+                                className="w-full py-2 text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 hover:text-white transition-colors"
+                            >
+                                Voltar para Login
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
             </motion.div>
             
             <p className="text-[9px] text-slate-500 mt-8 relative z-20 font-mono tracking-widest opacity-50">SYSTEM VERSION 4.0.2 // ENCRYPTED SESSION</p>

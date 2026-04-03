@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'motion/react';
 import { Icons, Input, Button, IconButton } from '../components/Shared';
 import { EditExpirationModal } from '../components/EditExpirationModal';
@@ -20,6 +22,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
     const [newsTitle, setNewsTitle] = useState('');
     const [newsContent, setNewsContent] = useState('');
     const [newsImage, setNewsImage] = useState<string|null>(null);
+    const [targetSystems, setTargetSystems] = useState<string[]>(['Pg', 'Mip', 'Sv']);
     const [editExpModal, setEditExpModal] = useState<{isOpen: boolean, system: string, currentExpiration: string | null}>({
         isOpen: false,
         system: '',
@@ -37,6 +40,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
     const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
 
     const importInputRef = useRef<HTMLInputElement>(null);
+    const newsTextareaRef = useRef<HTMLTextAreaElement>(null);
     const [importStatus, setImportStatus] = useState<any>({
         isOpen: false,
         isMinimized: false,
@@ -198,6 +202,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
 
     const handlePostNews = () => {
         if(!newsTitle || !newsContent) return notify("Título e conteúdo são obrigatórios.", "error");
+        if(targetSystems.length === 0) return notify("Selecione pelo menos um sistema.", "error");
         
         const payload = {
             id: generateUniqueId(),
@@ -206,6 +211,7 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
             date: getTodayDate(),
             author: user.username,
             image: newsImage || null,
+            targetSystems: targetSystems,
             timestamp: Date.now()
         };
 
@@ -213,7 +219,48 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
         setNewsTitle('');
         setNewsContent('');
         setNewsImage(null);
-        notify("Novidade publicada com sucesso!", "success");
+        setTargetSystems(['Pg', 'Mip', 'Sv']);
+        notify("Novidade publicada com sucesso!", "success", newsImage);
+    };
+
+    const insertFormat = (format: string) => {
+        const textarea = newsTextareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = newsContent;
+        const before = text.substring(0, start);
+        const after = text.substring(end);
+        const selected = text.substring(start, end);
+
+        let newText = '';
+        let cursorOffset = 0;
+
+        if (format === 'bold') {
+            newText = `${before}**${selected || 'texto'}**${after}`;
+            cursorOffset = selected ? 0 : -2;
+        } else if (format === 'h1') {
+            newText = `${before}\n# ${selected || 'Título Amarelo'}\n${after}`;
+        } else if (format === 'h2') {
+            newText = `${before}\n## ${selected || 'Título Azul'}\n${after}`;
+        } else if (format === 'h3') {
+            newText = `${before}\n### ${selected || 'Título Verde'}\n${after}`;
+        } else if (format === 'h4') {
+            newText = `${before}\n#### ${selected || 'Tópico Roxo'}\n${after}`;
+        } else if (format === 'h5') {
+            newText = `${before}\n##### ${selected || 'Subtítulo Vermelho'}\n${after}`;
+        } else if (format === 'list') {
+            newText = `${before}\n- ${selected || 'item'}\n${after}`;
+        }
+
+        setNewsContent(newText);
+        
+        setTimeout(() => {
+            textarea.focus();
+            const newPos = start + (newText.length - text.length) + cursorOffset;
+            textarea.setSelectionRange(newPos, newPos);
+        }, 0);
     };
 
     const handleSaveExpiration = (newDate: Date) => {
@@ -972,7 +1019,16 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 data.newsletter.sort((a:any,b:any) => b.timestamp - a.timestamp).map((news:any) => (
                                     <div key={news.id} className={`${theme.inner} p-5 rounded-2xl border ${theme.divider} relative hover:bg-opacity-80 transition-colors`}>
                                         <div className="flex justify-between items-start mb-3">
-                                            <h4 className={`font-bold text-lg ${theme.text}`}>{news.title}</h4>
+                                            <div>
+                                                <h4 className={`font-bold text-lg ${theme.text}`}>{news.title}</h4>
+                                                {news.targetSystems && news.targetSystems.length > 0 && (
+                                                    <div className="flex gap-1 mt-1">
+                                                        {news.targetSystems.map((s:string) => (
+                                                            <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase tracking-tighter border border-amber-500/20">{s}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                             <span className={`text-xs opacity-50 ${theme.inner} px-3 py-1 rounded-full border ${theme.divider}`}>{news.date}</span>
                                         </div>
                                         {news.image && (
@@ -980,7 +1036,11 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                                 <img src={news.image} alt="News" className="w-full h-auto object-cover max-h-64" />
                                             </div>
                                         )}
-                                        <p className="text-sm opacity-70 whitespace-pre-wrap leading-relaxed">{news.content}</p>
+                                        <div className="markdown-news">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {news.content}
+                                            </ReactMarkdown>
+                                        </div>
                                         {isSuperAdmin && (
                                             <button onClick={()=>del('newsletter', news.id)} className="absolute top-4 right-4 text-red-400 opacity-20 hover:opacity-100 p-2 hover:bg-red-500/10 rounded-full transition-all"><Icons.Trash size={16}/></button>
                                         )}
@@ -1104,13 +1164,62 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 <h4 className={`font-bold ${theme.text} uppercase tracking-widest text-xs mb-4 flex items-center gap-2`}><Icons.Message size={14}/> Publicar Novidade</h4>
                                 <div className="space-y-3">
                                     <Input theme={theme} placeholder="Título" value={newsTitle} onChange={(e:any)=>setNewsTitle(e.target.value)} />
+                                    
+                                    <div className="flex flex-wrap gap-1.5 mb-1">
+                                        <button onClick={() => insertFormat('h1')} className="px-2 py-1 rounded bg-amber-500/10 text-amber-500 text-[10px] font-bold border border-amber-500/20 hover:bg-amber-500/20 transition-all flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div> T1 Amarelo</button>
+                                        <button onClick={() => insertFormat('h2')} className="px-2 py-1 rounded bg-blue-500/10 text-blue-500 text-[10px] font-bold border border-blue-500/20 hover:bg-blue-500/20 transition-all flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> T2 Azul</button>
+                                        <button onClick={() => insertFormat('h3')} className="px-2 py-1 rounded bg-green-500/10 text-green-500 text-[10px] font-bold border border-green-500/20 hover:bg-green-500/20 transition-all flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> T3 Verde</button>
+                                        <button onClick={() => insertFormat('h4')} className="px-2 py-1 rounded bg-purple-500/10 text-purple-500 text-[10px] font-bold border border-purple-500/20 hover:bg-purple-500/20 transition-all flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Tópico Roxo</button>
+                                        <button onClick={() => insertFormat('h5')} className="px-2 py-1 rounded bg-red-500/10 text-red-500 text-[10px] font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Sub Vermelho</button>
+                                        <div className="w-px h-4 bg-white/10 mx-1 self-center"></div>
+                                        <button onClick={() => insertFormat('bold')} className="px-2 py-1 rounded bg-white/5 text-white/60 text-[10px] font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center gap-1"><Icons.Bold size={10}/> Negrito</button>
+                                        <button onClick={() => insertFormat('list')} className="px-2 py-1 rounded bg-white/5 text-white/60 text-[10px] font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center gap-1"><Icons.List size={10}/> Lista</button>
+                                    </div>
+
                                     <textarea 
+                                        ref={newsTextareaRef}
                                         className={`w-full h-32 ${theme.inner} border ${theme.divider} ${theme.text} rounded-xl px-4 py-3 outline-none focus:border-opacity-50 resize-none text-sm`}
                                         placeholder="Conteúdo... (Cole imagens aqui)"
                                         value={newsContent}
                                         onChange={(e)=>setNewsContent(e.target.value)}
                                         onPaste={handlePaste}
                                     />
+                                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-2">
+                                        <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                                            <Icons.HelpCircle size={10}/> Dica de Formatação
+                                        </p>
+                                        <p className="text-[10px] opacity-60 leading-tight">
+                                            Use os botões acima para formatar o texto com cores e estilos diferentes.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-xs font-bold opacity-60 ml-1">Sistemas Alvo</label>
+                                        <div className="flex gap-2">
+                                            {['Pg', 'Mip', 'Sv'].map(sys => (
+                                                <button 
+                                                    key={sys}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (targetSystems.includes(sys)) {
+                                                            setTargetSystems(prev => prev.filter(s => s !== sys));
+                                                        } else {
+                                                            setTargetSystems(prev => [...prev, sys]);
+                                                        }
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${targetSystems.includes(sys) ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
+                                                >
+                                                    {sys}
+                                                </button>
+                                            ))}
+                                            <button 
+                                                type="button"
+                                                onClick={() => setTargetSystems(['Pg', 'Mip', 'Sv'])}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white/70"
+                                            >
+                                                Todos
+                                            </button>
+                                        </div>
+                                    </div>
                                     <div className="flex justify-between items-center">
                                         <div className="flex gap-2">
                                             <input type="file" id="news-img-upload" className="hidden" accept="image/*" onChange={handleImageUpload} />

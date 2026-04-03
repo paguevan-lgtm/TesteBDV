@@ -365,7 +365,7 @@ const AppContent = () => {
     const [calcOpen, setCalcOpen] = useState(false);
 
     // Notificações e Confirmações
-    const [notification, setNotification] = useState({ message: '', type: 'info', visible: false });
+    const [notification, setNotification] = useState({ message: '', type: 'info', visible: false, image: null as string | null });
     const [persistentNotifications, setPersistentNotifications] = useState<{id: string, message: string}[]>([]);
     const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'danger' });
     const [alertState, setAlertState] = useState<any>({ isOpen: false, title: '', message: '', type: 'warning' });
@@ -523,13 +523,14 @@ const AppContent = () => {
     const globalTouchRef = useRef({ x: 0, y: 0 });
 
     // --- LOGIC EXTRACTED HELPERS ---
-    const notify = (msg: string, type: 'success' | 'error' | 'info' | 'update' | 'delete' = 'success') => {
+    const notify = (msg: string, type: 'success' | 'error' | 'info' | 'update' | 'delete' | 'warning' = 'success', image: string | null = null) => {
         // Map types to visual styles
         const visualType = (type === 'update' || type === 'delete') ? (type === 'update' ? 'success' : 'error') : type;
         
         if (popupsEnabled) {
-            setNotification({ message: msg, type: visualType as any, visible: true });
-            setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 3000);
+            setNotification({ message: msg, type: visualType as any, visible: true, image });
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 3000);
         }
         
         // Play sound based on type if enabled
@@ -1179,17 +1180,31 @@ const AppContent = () => {
         if (data.newsletter && data.newsletter.length > 0 && user) {
             // Ordena para pegar a mais recente
             const sortedNews = [...data.newsletter].sort((a:any, b:any) => b.timestamp - a.timestamp);
-            const latest = sortedNews[0];
             
-            const lastSeenId = localStorage.getItem(`last_news_seen_${user.username}`);
-            
-            // Se o ID da última notícia for diferente do visto, mostra o modal
-            if (lastSeenId !== latest?.id) {
-                setLatestNews(latest);
-                setShowNewsModal(true);
+            // Filtra as notícias que o usuário pode ver
+            const visibleNews = sortedNews.filter((news: any) => {
+                // Se não tiver targetSystems (antigas), mostra pra todos
+                if (!news.targetSystems || news.targetSystems.length === 0) return true;
+                
+                // Se o usuário for o Breno (SuperAdmin) ou estiver no contexto Mistura, vê tudo
+                if (user.username === 'Breno' || systemContext === 'Mistura') return true;
+                
+                // Caso contrário, verifica se o sistema do usuário está na lista
+                return news.targetSystems.includes(systemContext);
+            });
+
+            if (visibleNews.length > 0) {
+                const latest = visibleNews[0];
+                const lastSeenId = localStorage.getItem(`last_news_seen_${user.username}`);
+                
+                // Se o ID da última notícia for diferente do visto, mostra o modal
+                if (lastSeenId !== latest?.id) {
+                    setLatestNews(latest);
+                    setShowNewsModal(true);
+                }
             }
         }
-    }, [data.newsletter, user]);
+    }, [data.newsletter, user, systemContext]);
 
     const markNewsAsSeen = () => {
         if (latestNews?.id && user) {
@@ -3378,7 +3393,7 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                         )}
                     </div>
                 )}
-                 <Toast message={notification.message} type={notification.type} visible={notification.visible} />
+                 <Toast message={notification.message} type={notification.type} visible={notification.visible} image={notification.image} />
                  <ConfirmModal isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState((prev:any) => ({ ...prev, isOpen: false }))} type={confirmState.type} theme={theme} />
                 <AlertModal 
                     isOpen={alertState.isOpen} 

@@ -14,6 +14,8 @@ interface User {
     systems?: string[];
     createdBy?: string;
     sessionId?: string;
+    ip?: string;
+    deviceId?: string;
 }
 
 // Tipagem do Contexto
@@ -22,6 +24,8 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (u: string, p: string, coords: any, system?: string) => Promise<boolean>;
+    requestOtp: (u: string, p: string) => Promise<{ success: boolean; maskedEmail?: string; error?: string }>;
+    verifyOtp: (u: string, otp: string) => Promise<{ success: boolean; error?: string }>;
     findUsersByCredentials: (u: string, p: string) => Promise<User[]>;
     logout: (reason?: string) => void;
     updateActivity: () => void;
@@ -188,6 +192,36 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
         return R * c;
+    };
+
+    const requestOtp = async (u: string, p: string) => {
+        try {
+            const res = await fetch('/api/request-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+            return data;
+        } catch (error: any) {
+            console.error("Error requesting OTP:", error);
+            return { success: false, error: error.message };
+        }
+    };
+
+    const verifyOtp = async (u: string, otp: string) => {
+        try {
+            const res = await fetch('/api/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, otp })
+            });
+            const data = await res.json();
+            return data;
+        } catch (error: any) {
+            console.error("Error verifying OTP:", error);
+            return { success: false, error: error.message };
+        }
     };
 
     // 2. Função de Login (DB First, Fallback to Constant)
@@ -562,6 +596,8 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
             isAuthenticated: !!user, 
             isLoading, 
             login, 
+            requestOtp,
+            verifyOtp,
             findUsersByCredentials,
             logout, 
             updateActivity, 
