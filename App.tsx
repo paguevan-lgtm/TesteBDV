@@ -2396,6 +2396,14 @@ const AppContent = () => {
     };
 
     const autoAssignPassenger = async (pax: any) => {
+        // Se já estiver em uma viagem ativa no dia, não tenta alocar novamente
+        const isAssigned = data.trips.some((t: any) => 
+            t.date === pax.date && 
+            t.status !== 'Cancelada' && 
+            (t.passengerIds || []).some((pid: any) => String(pid) === String(pax.realId || pax.id))
+        );
+        if (isAssigned) return;
+
         const timeToMinutes = (t: string) => {
             if (!t) return -1;
             const [h, m] = t.split(':').map(Number);
@@ -2406,7 +2414,7 @@ const AppContent = () => {
 
         const trip = data.trips.find((t:any) => {
             if (t.date !== pax.date || t.status === 'Cancelada' || t.status === 'Finalizada') return false;
-            if (t.passengerIds && t.passengerIds.includes(pax.realId || pax.id)) return false;
+            if (t.passengerIds && t.passengerIds.some((pid: any) => String(pid) === String(pax.realId || pax.id))) return false;
 
             if (isMipContext && t.isTemp) {
                 // MIP Temp Trip Logic: 30 min window + Day Type check
@@ -2527,6 +2535,15 @@ const AppContent = () => {
                 if (p && p.status === 'Bloqueado') {
                     return notify(`Passageiro BLOQUEADO: ${p.name}. Motivo: ${p.blockReason || 'Não informado'}`, "error");
                 }
+                
+                // Verificar se já está em uma viagem
+                const isAssigned = data.trips.some((t: any) => 
+                    t.date === formData.date && 
+                    t.status !== 'Cancelada' && 
+                    (t.passengerIds || []).some((pid: any) => String(pid) === String(formData.id))
+                );
+                if (isAssigned) return notify("Este passageiro já está alocado em uma viagem!", "error");
+
                 await dbOp('update', 'passengers', { 
                     id: formData.id, 
                     time: formData.time, 
@@ -2536,9 +2553,27 @@ const AppContent = () => {
             } else if (collection === 'rescheduleAll') {
                 if (!formData.sourceTime || !formData.newTime) return notify("Preencha o horário de origem e o novo horário!", "error");
                 
-                const passengersToReschedule = data.passengers.filter((p: any) => p.time === formData.sourceTime && p.date === formData.date && p.status !== 'Bloqueado');
+                // Identificar passageiros já alocados neste dia para não reagendá-los
+                const assignedOnDate = new Set();
+                data.trips.forEach((t: any) => {
+                    if (t.date === formData.date && t.status !== 'Cancelada') {
+                        (t.passengerIds || []).forEach((pid: any) => assignedOnDate.add(String(pid)));
+                    }
+                });
+
+                const passengersToReschedule = data.passengers.filter((p: any) => {
+                    const isSameTime = p.time === formData.sourceTime;
+                    const isSameDate = p.date === formData.date;
+                    const isNotBlocked = p.status !== 'Bloqueado';
+                    const isNotAssigned = !assignedOnDate.has(String(p.realId || p.id));
+                    
+                    // Se não for Mistura, filtra pelo sistema atual
+                    const systemMatch = systemContext === 'Mistura' || (p.system || 'Pg') === systemContext;
+
+                    return isSameTime && isSameDate && isNotBlocked && isNotAssigned && systemMatch;
+                });
                 
-                if (passengersToReschedule.length === 0) return notify("Nenhum passageiro encontrado para este horário!", "error");
+                if (passengersToReschedule.length === 0) return notify("Nenhum passageiro pendente encontrado para este horário!", "error");
                 
                 for (const p of passengersToReschedule) {
                     await dbOp('update', 'passengers', {
@@ -2690,19 +2725,16 @@ const AppContent = () => {
         let tripDate = formData.date || getTodayDate();
         let tripTime = time;
 
-        // 0. Identificar passageiros já alocados neste dia e horário
-        const occupiedPassAtTime = new Set();
+        // 0. Identificar passageiros já alocados neste dia (em qualquer horário)
+        const occupiedPassOnDate = new Set();
         const currentTripId = editingTripId ? String(editingTripId) : null;
 
         data.trips.forEach((t:any) => {
-            if (String(t.id) === currentTripId) return; // PULA A PRÓPRIA VIAGEM (Comparação String)
+            if (String(t.id) === currentTripId) return; // PULA A PRÓPRIA VIAGEM
             if (t.date === tripDate && t.status !== 'Cancelada') {
                 if (t.passengerIds && Array.isArray(t.passengerIds)) {
-                    t.passengerIds.forEach((pid:string) => {
-                        // Se o horário bater, marca como ocupado
-                        if (t.time === tripTime) {
-                            occupiedPassAtTime.add(pid);
-                        }
+                    t.passengerIds.forEach((pid:any) => {
+                        occupiedPassOnDate.add(String(pid));
                     });
                 }
             }
@@ -2734,24 +2766,17 @@ const AppContent = () => {
             return normalizeTime(pTime) === normalizeTime(tripTime);
         };
 
-        // 1. Filtrar Candidatos (Livres no horário)
-        let candidates = data.passengers.filter((p:any) => {
+        // 1. Filtrar Candidatos (Livres no dia)
+        const candidates = data.passengers.filter((p:any) => {
+            const systemMatch = systemContext === 'Mistura' || (p.system || 'Pg') === systemContext;
             return p.status === 'Ativo' && 
                    p.date === tripDate && 
                    isTimeMatch(p.time) &&
-                   !occupiedPassAtTime.has(p.realId || p.id);
+                   systemMatch &&
+                   !occupiedPassOnDate.has(String(p.realId || p.id));
         });
 
-        // NOVA ABORDAGEM: Se não achou livres, procura ocupados no mesmo horário (roubar)
-        if (candidates.length === 0) {
-             candidates = data.passengers.filter((p:any) => {
-                return p.status === 'Ativo' && 
-                       p.date === tripDate && 
-                       isTimeMatch(p.time);
-            });
-        }
-
-        if (candidates.length === 0) return notify("Nenhum passageiro disponível para este horário.", "info");
+        if (candidates.length === 0) return notify("Nenhum passageiro livre encontrado para este horário.", "info");
 
         // 2. Encontrar a "Âncora" (Foco da rota)
         // Lógica: A maior família (passengerCount). Desempate pelo início da cidade.
