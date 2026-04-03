@@ -56,7 +56,7 @@ const THEME_CONFIGS: any = {
     }
 };
 
-export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, setAiModal, user, systemContext }: any) {
+export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, setAiModal, user, systemContext, notify }: any) {
     const [noteText, setNoteText] = useState('');
     const [greeting, setGreeting] = useState('');
     const [motivational, setMotivational] = useState('');
@@ -172,10 +172,32 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
         };
     }, [data]);
 
+    const [showReminderModal, setShowReminderModal] = useState(false);
+    const [reminderDate, setReminderDate] = useState(getTodayDate());
+    const [reminderTime, setReminderTime] = useState('');
+    const [wantsReminder, setWantsReminder] = useState(false);
+
     const saveNote = () => { 
         if(!noteText.trim()) return; 
-        dbOp('create', 'notes', { text: noteText, completed: false, username: user.username }); 
-        setNoteText(''); 
+        setShowReminderModal(true);
+    };
+
+    const confirmSaveNote = (skipReminder = false) => {
+        const payload: any = { 
+            text: noteText, 
+            completed: false, 
+            username: user.username,
+            reminderTriggered: false
+        };
+        if (!skipReminder && wantsReminder && reminderDate && reminderTime) {
+            payload.reminderDate = reminderDate;
+            payload.reminderTime = reminderTime;
+        }
+        dbOp('create', 'notes', payload); 
+        setNoteText('');
+        setShowReminderModal(false);
+        setWantsReminder(false);
+        setReminderTime('');
     };
 
     const userNotes = data.notes.filter((n: any) => n.username === user.username);
@@ -399,13 +421,20 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                         onChange={e=>setNoteText(e.target.value)} 
                         onKeyPress={e=> e.key === 'Enter' && saveNote()} 
                     />
-                    <button onClick={saveNote} className={`${theme.primary} w-12 rounded-xl flex items-center justify-center shadow-lg active:scale-95 transition-transform`}><Icons.Plus size={20}/></button>
+                    <button onClick={saveNote} className={`${theme.primary} w-12 rounded-xl flex items-center justify-center shadow-lg active:scale-95 transition-transform`} title="Adicionar Nota"><Icons.Plus size={20}/></button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                     {userNotes.filter((n:any) => !n.completed).length > 0 ? userNotes.filter((n:any) => !n.completed).map((note:any) => (
                         <div key={note.id} className={`flex justify-between items-start ${ghostBg} p-3 rounded-xl text-sm border ${theme.border} transition-colors group`}>
-                            <span className="flex-1 break-words leading-relaxed opacity-90">{note.text}</span>
+                            <div className="flex-1 flex flex-col">
+                                <span className="break-words leading-relaxed opacity-90">{note.text}</span>
+                                {note.reminderDate && (
+                                    <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1 mt-1">
+                                        <Icons.Clock size={10}/> {note.reminderDate.split('-').reverse().join('/')} às {note.reminderTime}
+                                    </span>
+                                )}
+                            </div>
                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                                 <button 
                                     onClick={() => { navigator.clipboard.writeText(note.text); }}
@@ -444,7 +473,14 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                             {userNotes.filter((n:any) => n.completed).map((note:any) => (
                                 <div key={note.id} className={`flex justify-between items-center bg-white/5 p-3 rounded-xl text-sm border border-dashed border-white/10 opacity-70 group hover:opacity-100 transition-all`}>
-                                    <span className="flex-1 break-words leading-relaxed line-through opacity-80">{note.text}</span>
+                                    <div className="flex-1 flex flex-col">
+                                        <span className="break-words leading-relaxed line-through opacity-80">{note.text}</span>
+                                        {note.reminderDate && (
+                                            <span className="text-[10px] opacity-40 flex items-center gap-1 mt-1">
+                                                <Icons.Clock size={10}/> {note.reminderDate.split('-').reverse().join('/')} às {note.reminderTime}
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                                         <button 
                                             onClick={() => dbOp('update', 'notes', { ...note, completed: false })} 
@@ -467,6 +503,84 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
                     </div>
                 )}
             </div>
+            {/* REMINDER SETUP MODAL */}
+            {showReminderModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className={`${theme.card} border ${theme.border} w-full max-w-md p-6 rounded-2xl shadow-2xl stagger-in`}>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="bg-amber-500/20 p-2 rounded-xl text-amber-500">
+                                <Icons.Bell size={24}/>
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold">Configurar Lembrete?</h3>
+                                <p className="text-xs opacity-60">Deseja ser notificado sobre este lembrete?</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 mb-8">
+                            <button 
+                                onClick={() => setWantsReminder(!wantsReminder)}
+                                className={`w-full p-4 rounded-2xl border transition-all flex items-center justify-between ${wantsReminder ? 'border-amber-500 bg-amber-500/10' : 'border-white/10 bg-white/5'}`}
+                            >
+                                <span className="font-bold">Emitir lembrete sonoro</span>
+                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${wantsReminder ? 'border-amber-500 bg-amber-500' : 'border-white/20'}`}>
+                                    {wantsReminder && <Icons.Check size={14} className="text-white"/>}
+                                </div>
+                            </button>
+
+                            {wantsReminder && (
+                                <div className="grid grid-cols-2 gap-3 animate-slide-up">
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Data</label>
+                                        <div className="relative group/input">
+                                            <input 
+                                                type="date"
+                                                value={reminderDate}
+                                                onChange={e => setReminderDate(e.target.value)}
+                                                className={`w-full ${innerBg} border ${theme.border} rounded-2xl px-5 py-4 text-sm outline-none focus:border-amber-500 transition-all font-bold appearance-none cursor-pointer hover:bg-white/5`}
+                                            />
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-40 group-focus-within/input:text-amber-500 group-focus-within/input:opacity-100 transition-all">
+                                                <Icons.Calendar size={18}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Horário</label>
+                                        <div className="relative group/input">
+                                            <input 
+                                                type="time"
+                                                value={reminderTime}
+                                                onChange={e => setReminderTime(e.target.value)}
+                                                className={`w-full ${innerBg} border ${theme.border} rounded-2xl px-5 py-4 text-sm outline-none focus:border-amber-500 transition-all font-bold appearance-none cursor-pointer hover:bg-white/5`}
+                                            />
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-40 group-focus-within/input:text-amber-500 group-focus-within/input:opacity-100 transition-all">
+                                                <Icons.Clock size={18}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <button 
+                                onClick={() => {
+                                    confirmSaveNote(true); // Salva sem lembrete
+                                }}
+                                className="py-3.5 rounded-2xl font-bold text-sm bg-white/5 hover:bg-white/10 transition-all"
+                            >
+                                Não, só salvar
+                            </button>
+                            <button 
+                                onClick={() => confirmSaveNote(false)}
+                                className={`py-3.5 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all ${theme.primary}`}
+                            >
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

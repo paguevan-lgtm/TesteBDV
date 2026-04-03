@@ -54,6 +54,9 @@ export interface Note {
     text: string;
     completed: boolean;
     username?: string; // Vincula a nota ao usuário
+    reminderDate?: string; // YYYY-MM-DD
+    reminderTime?: string; // HH:mm
+    reminderTriggered?: boolean; // Para evitar disparar múltiplas vezes
 }
 
 export interface LostFoundItem {

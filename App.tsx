@@ -127,6 +127,8 @@ const AppContent = () => {
     const [duePranchetaData, setDuePranchetaData] = useState<any>({});
     const [themeKey, setThemeKey] = useState('default');
     const [geminiKey, setGeminiKey] = useState(localStorage.getItem('nexflow_gemini_key') || '');
+    const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('nexflow_sound_enabled') !== 'false');
+    const [popupsEnabled, setPopupsEnabled] = useState(() => localStorage.getItem('nexflow_popups_enabled') !== 'false');
     
     const [ipHistory, setIpHistory] = useState<any[]>([]);
     const [ipLabels, setIpLabels] = useState<any>({});
@@ -521,9 +523,29 @@ const AppContent = () => {
     const globalTouchRef = useRef({ x: 0, y: 0 });
 
     // --- LOGIC EXTRACTED HELPERS ---
-    const notify = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
-        setNotification({ message: msg, type, visible: true });
-        setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 3000);
+    const notify = (msg: string, type: 'success' | 'error' | 'info' | 'update' | 'delete' = 'success') => {
+        // Map types to visual styles
+        const visualType = (type === 'update' || type === 'delete') ? (type === 'update' ? 'success' : 'error') : type;
+        
+        if (popupsEnabled) {
+            setNotification({ message: msg, type: visualType as any, visible: true });
+            setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 3000);
+        }
+        
+        // Play sound based on type if enabled
+        if (soundEnabled) {
+            let audioRef = null;
+            if (type === 'success') audioRef = successAudioRef;
+            else if (type === 'update') audioRef = updateAudioRef;
+            else if (type === 'delete') audioRef = deleteAudioRef;
+            else if (type === 'error') audioRef = errorAudioRef;
+            else if (type === 'info') audioRef = infoAudioRef;
+
+            if (audioRef && audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => console.warn("Sound blocked:", e));
+            }
+        }
     };
 
     const addPersistentNotification = (msg: string) => {
@@ -823,7 +845,7 @@ const AppContent = () => {
                 else if (node === 'lostFound') logAction('Editou Achados e Perdidos', `Item: ${payload.item || 'ID '+targetId}`);
                 else if (node === 'users') logAction('Editou Usuário', `Username: ${payload.username || 'ID '+targetId}`);
 
-                if (node !== 'preferences') notify("Atualizado!", "success");
+                if (node !== 'preferences') notify("Atualizado!", "update");
             } else if (type === 'delete') {
                 // Lógica de segurança para Operador: limite de 3 exclusões seguidas de passageiros/motoristas
                 if (user?.role === 'operador' && (node === 'passengers' || node === 'drivers')) {
@@ -898,7 +920,7 @@ const AppContent = () => {
                 else if (node === 'users') logAction('Excluiu Usuário', `ID: ${idToDelete}`);
                 else if (node === 'notes') logAction('Excluiu Nota', `ID: ${idToDelete}`);
 
-                notify("Excluído.", "info");
+                notify("Excluído.", "delete");
             }
         } catch (e: any) { 
             console.error("dbOp Error:", e);
@@ -921,7 +943,7 @@ const AppContent = () => {
             }
             await ref.remove();
             logAction('Removeu Pagamento Prancheta', `Vaga: ${vaga} - Semana: ${viewedWeekId}`);
-            notify(`Pagamento da vaga ${vaga} removido.`, "info");
+            notify(`Pagamento da vaga ${vaga} removido.`, "delete");
         } else {
             await ref.set({
                 paid: true,
@@ -957,6 +979,106 @@ const AppContent = () => {
             }
         }
     }, [user, currentWeekId]);
+
+    // Reminder Logic
+    const [activeReminder, setActiveReminder] = useState<any>(null);
+    const [showSnoozeModal, setShowSnoozeModal] = useState(false);
+    const [snoozeDate, setSnoozeDate] = useState(getTodayDate());
+    const [snoozeTime, setSnoozeTime] = useState('');
+    const reminderAudioRef = useRef<HTMLAudioElement | null>(null);
+    const successAudioRef = useRef<HTMLAudioElement | null>(null);
+    const updateAudioRef = useRef<HTMLAudioElement | null>(null);
+    const deleteAudioRef = useRef<HTMLAudioElement | null>(null);
+    const errorAudioRef = useRef<HTMLAudioElement | null>(null);
+    const infoAudioRef = useRef<HTMLAudioElement | null>(null);
+    const triggeredIdsRef = useRef<Set<string>>(new Set());
+    const notesRef = useRef<any[]>([]);
+    const dbOpRef = useRef<any>(null);
+
+    useEffect(() => {
+        notesRef.current = data.notes || [];
+    }, [data.notes]);
+
+    useEffect(() => {
+        dbOpRef.current = dbOp;
+    }, [dbOp]);
+
+    useEffect(() => {
+        if (!user) return;
+        
+        const interval = setInterval(() => {
+            try {
+                const now = new Date();
+                const today = getTodayDate();
+                const h = now.getHours().toString().padStart(2, '0');
+                const m = now.getMinutes().toString().padStart(2, '0');
+                const currentTime = `${h}:${m}`;
+                
+                // Filtra lembretes pendentes para o usuário atual que coincidem com a data/hora
+                const pendingReminders = notesRef.current.filter((n: any) => 
+                    n.username === user.username && 
+                    !n.completed && 
+                    n.reminderDate === today && 
+                    n.reminderTime === currentTime && 
+                    !n.reminderTriggered &&
+                    !triggeredIdsRef.current.has(n.id)
+                );
+                
+                if (pendingReminders.length > 0) {
+                    const reminder = pendingReminders[0];
+                    console.log("Triggering reminder:", reminder.text);
+                    triggeredIdsRef.current.add(reminder.id);
+                    setActiveReminder(reminder);
+                    
+                    if (dbOpRef.current) {
+                        dbOpRef.current('update', 'notes', { ...reminder, reminderTriggered: true });
+                    }
+                    
+                    if (reminderAudioRef.current) {
+                        reminderAudioRef.current.currentTime = 0;
+                        const playPromise = reminderAudioRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(e => {
+                                console.warn("Audio playback blocked by browser. User interaction needed.", e);
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error in reminder interval:", err);
+            }
+        }, 5000); // Check every 5 seconds for better responsiveness
+        
+        return () => clearInterval(interval);
+    }, [user]);
+
+    useEffect(() => {
+        if (!activeReminder) return;
+        
+        const interval = setInterval(() => {
+            if (reminderAudioRef.current) {
+                reminderAudioRef.current.currentTime = 0;
+                const playPromise = reminderAudioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => console.warn("Re-emit sound blocked:", e));
+                }
+            }
+        }, 30000); // Re-emit sound every 30 seconds if not dismissed
+        
+        return () => clearInterval(interval);
+    }, [activeReminder]);
+
+    const handleSnooze = () => {
+        if (!activeReminder || !snoozeDate || !snoozeTime) return;
+        dbOp('update', 'notes', { 
+            ...activeReminder, 
+            reminderDate: snoozeDate, 
+            reminderTime: snoozeTime, 
+            reminderTriggered: false 
+        });
+        setActiveReminder(null);
+        setShowSnoozeModal(false);
+    };
 
     const changeTheme = (t: string) => { setThemeKey(t); if(user) { dbOp('update', 'preferences', { theme: t }); localStorage.setItem(`${user.username}_nexflow_theme`, t); } };
 
@@ -1759,7 +1881,7 @@ const AppContent = () => {
     };
     
     const saveApiKey = (k: string) => { setGeminiKey(k); localStorage.setItem('nexflow_gemini_key', k); notify("API Key salva!", "success"); };
-    const blockIp = () => { if(!ipToBlock) return notify('Digite um IP', 'error'); dbOp('create', 'blocked_ips', { ip: ipToBlock, reason: ipReason || 'Manual', blockedBy: user.username }); setIpToBlock(''); setIpReason(''); notify('IP Bloqueado!', "success"); };
+    const blockIp = () => { if(!ipToBlock) return notify('Digite um IP', 'error'); dbOp('create', 'blocked_ips', { ip: ipToBlock, reason: ipReason || 'Manual', blockedBy: user.username }); setIpToBlock(''); setIpReason(''); notify('IP Bloqueado!', "delete"); };
     const saveIpLabel = (ip: string, label: string) => { if(!ip) return; const safeIp = ip.replace(/\./g, '_'); db.ref(`ip_labels/${safeIp}`).set(label); };
     
     const del = (col: string, id: string) => {
@@ -2924,7 +3046,7 @@ const AppContent = () => {
         if (isInLousa) {
             const newOrder = lousaOrder.filter((i:any) => i.vaga !== vaga);
             db.ref(tableSystemContext === 'Pg' ? `daily_tables/${lousaDate}/lousaOrder` : `${tableSystemContext}/daily_tables/${lousaDate}/lousaOrder`).set(newOrder);
-            notify("Removido da lousa!", "success");
+            notify("Removido da lousa!", "delete");
         } else {
             if (isFolga) return notify("Esta vaga está de folga hoje!", "error");
             const newOrder = [...lousaOrder, { vaga, uid: generateUniqueId(), riscado: false }];
@@ -2936,7 +3058,7 @@ const AppContent = () => {
     const cancelConfirmation = (vaga: string) => {
         const tableSystemContext = (user.username === 'Breno' && systemContext === 'Mistura') ? 'Pg' : systemContext;
         db.ref(tableSystemContext === 'Pg' ? `daily_tables/${currentOpDate}/status/${vaga}` : `${tableSystemContext}/daily_tables/${currentOpDate}/status/${vaga}`).remove();
-        notify("Confirmação cancelada!", "success");
+        notify("Confirmação cancelada!", "delete");
     };
 
     const removeTempTrip = (vaga: string) => {
@@ -3506,6 +3628,10 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                     setPranchetaValue(val);
                                     db.ref('system_settings/Pg/pranchetaValue').set(val);
                                 }}
+                                soundEnabled={soundEnabled}
+                                setSoundEnabled={setSoundEnabled}
+                                popupsEnabled={popupsEnabled}
+                                setPopupsEnabled={setPopupsEnabled}
                             />}
                             {view === 'manageUsers' && <GerenciarUsuarios data={data} theme={theme} setView={setView} dbOp={dbOp} notify={notify} user={user} requestConfirm={requestConfirm} systemContext={systemContext} />}
                         </div>
@@ -3513,6 +3639,101 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                  </div>
 
             <PersistentNotifications notifications={persistentNotifications} onClose={removePersistentNotification} />
+            
+            <audio ref={reminderAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" preload="auto" />
+            <audio ref={successAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" preload="auto" />
+            <audio ref={updateAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" preload="auto" />
+            <audio ref={deleteAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" preload="auto" />
+            <audio ref={errorAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" preload="auto" />
+            <audio ref={infoAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" preload="auto" />
+
+            {/* GLOBAL REMINDER POPUP */}
+            {activeReminder && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-sm px-4 animate-bounce-in">
+                    <div className={`${theme.card} border-2 border-amber-500 shadow-[0_0_50px_rgba(245,158,11,0.5)] p-6 rounded-[2.5rem] flex flex-col gap-5 relative overflow-hidden backdrop-blur-2xl animate-pulse-gentle`}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-transparent animate-pulse"></div>
+                        <div className="flex items-start gap-5 relative z-10">
+                            <div className="bg-amber-500 p-4 rounded-3xl text-white shadow-2xl shadow-amber-500/40 animate-bounce">
+                                <Icons.Bell size={28}/>
+                            </div>
+                            <div className="flex-1 min-w-0 pt-1">
+                                <h4 className="font-black text-amber-500 text-[10px] uppercase tracking-[0.3em] mb-2">Atenção: Lembrete</h4>
+                                <p className="text-lg font-black leading-tight text-white drop-shadow-md">{activeReminder.text}</p>
+                            </div>
+                            <button 
+                                onClick={() => setActiveReminder(null)}
+                                className="p-2.5 hover:bg-white/10 rounded-2xl opacity-40 hover:opacity-100 transition-all active:scale-90"
+                            >
+                                <Icons.X size={22}/>
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 relative z-10">
+                            <button 
+                                onClick={() => {
+                                    if (dbOpRef.current) {
+                                        dbOpRef.current('update', 'notes', { ...activeReminder, completed: true });
+                                    }
+                                    setActiveReminder(null);
+                                }}
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl text-sm font-black transition-all shadow-xl shadow-emerald-500/30 active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Icons.Check size={18}/> Concluir
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setSnoozeDate(getTodayDate());
+                                    setSnoozeTime(addMinutes(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false }), 15));
+                                    setShowSnoozeModal(true);
+                                }}
+                                className="bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl text-sm font-black transition-all shadow-xl shadow-amber-500/30 active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Icons.Clock size={18}/> Adiar...
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SNOOZE MODAL */}
+            {showSnoozeModal && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+                    <div className={`${theme.card} border ${theme.border} w-full max-w-xs p-8 rounded-[2.5rem] shadow-2xl stagger-in`}>
+                        <div className="flex flex-col items-center text-center mb-8">
+                            <div className="bg-amber-500/20 p-4 rounded-3xl text-amber-500 mb-4">
+                                <Icons.Clock size={32}/>
+                            </div>
+                            <h3 className="text-xl font-black">Adiar Lembrete</h3>
+                            <p className="text-xs opacity-50 mt-1">Escolha um novo horário para o alerta</p>
+                        </div>
+                        
+                        <div className="space-y-5 mb-8">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Nova Data</label>
+                                <input 
+                                    type="date"
+                                    value={snoozeDate}
+                                    onChange={e => setSnoozeDate(e.target.value)}
+                                    className={`w-full bg-white/5 border ${theme.border} rounded-2xl px-5 py-4 text-sm outline-none focus:border-amber-500 transition-all font-bold`}
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Novo Horário</label>
+                                <input 
+                                    type="time"
+                                    value={snoozeTime}
+                                    onChange={e => setSnoozeTime(e.target.value)}
+                                    className={`w-full bg-white/5 border ${theme.border} rounded-2xl px-5 py-4 text-sm outline-none focus:border-amber-500 transition-all font-bold`}
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <button onClick={() => setShowSnoozeModal(false)} className="py-4 rounded-2xl font-bold text-sm bg-white/5 hover:bg-white/10 transition-all">Cancelar</button>
+                            <button onClick={handleSnooze} className={`${theme.primary} py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 active:scale-95 transition-all`}>Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <GlobalModals
                 modal={modal} setModal={setModal}
                 aiModal={aiModal} setAiModal={setAiModal}

@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../components/SubscriptionLock';
 import { db } from '../firebase';
 
-export default function Configuracoes({ user, theme, restartTour, setAiModal, geminiKey, setGeminiKey, saveApiKey, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive, pranchetaValue, setPranchetaValue }: any) {
+export default function Configuracoes({ user, theme, restartTour, setAiModal, geminiKey, setGeminiKey, saveApiKey, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive, pranchetaValue, setPranchetaValue, soundEnabled, setSoundEnabled, popupsEnabled, setPopupsEnabled }: any) {
     const { logout } = useAuth();
     const { triggerEarlyRenewal } = useSubscription();
     
@@ -580,6 +580,50 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ge
                                 ))}
                             </div>
                             <Button theme={theme} onClick={handleClearCache} variant="secondary" className="w-full" icon={Icons.Trash}>Limpar Cache Local</Button>
+                        </div>
+
+                        {/* SONS E NOTIFICAÇÕES */}
+                        <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                <Icons.Volume2 className={theme.accent}/> Sons e Notificações
+                            </h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-3 rounded-xl bg-black/10 border border-white/5">
+                                    <div>
+                                        <p className="font-bold text-sm">Efeitos Sonoros</p>
+                                        <p className="text-xs opacity-60">Ativar sons ao criar, editar ou excluir itens.</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            const newVal = !soundEnabled;
+                                            setSoundEnabled(newVal);
+                                            localStorage.setItem('nexflow_sound_enabled', String(newVal));
+                                            notify(newVal ? "Sons ativados" : "Sons desativados", "info");
+                                        }}
+                                        className={`w-12 h-6 rounded-full transition-all duration-300 relative ${soundEnabled ? 'bg-green-500' : 'bg-gray-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${soundEnabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center justify-between p-3 rounded-xl bg-black/10 border border-white/5">
+                                    <div>
+                                        <p className="font-bold text-sm">Popups de Notificação</p>
+                                        <p className="text-xs opacity-60">Exibir balões de aviso no topo da tela.</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            const newVal = !popupsEnabled;
+                                            setPopupsEnabled(newVal);
+                                            localStorage.setItem('nexflow_popups_enabled', String(newVal));
+                                            notify(newVal ? "Popups ativados" : "Popups desativados", "info");
+                                        }}
+                                        className={`w-12 h-6 rounded-full transition-all duration-300 relative ${popupsEnabled ? 'bg-green-500' : 'bg-gray-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${popupsEnabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

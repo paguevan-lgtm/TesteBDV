@@ -121,7 +121,7 @@ export default function GerenciarUsuarios({ data, theme, setView, dbOp, notify, 
         setFormUser({ username: '', email: '', pass: '', role: 'operador', systems: [systemContext || 'Pg'] });
         setIsEditing(null);
         setViewMode('list');
-        notify(isEditing ? "Usuário atualizado!" : "Usuário criado!", "success");
+        notify(isEditing ? "Usuário atualizado!" : "Usuário criado!", isEditing ? "update" : "success");
     };
 
     const handleEdit = (u: any) => {
