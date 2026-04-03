@@ -96,7 +96,7 @@ export default function Dashboard({ data, theme, setView, onOpenModal, dbOp, set
     // Define saudação e frase baseada na hora
     useEffect(() => {
         const hour = new Date().getHours();
-        const name = user?.displayName?.split(' ')[0] || 'Motorista';
+        const name = user?.username || user?.displayName?.split(' ')[0] || 'Usuário';
         
         const phrases = [
             'Bora acelerar a gestão que o dia promete!',
