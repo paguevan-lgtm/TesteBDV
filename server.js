@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
@@ -5,32 +6,31 @@ import Stripe from 'stripe';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
-import fetch, { RequestInit as NodeFetchRequestInit, Response as NodeFetchResponse } from 'node-fetch';
-import { GoogleGenAI } from "@google/genai";
+import fetch from 'node-fetch';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Stripe Configuration
-let stripeClient: Stripe | null = null;
+let stripeClient = null;
 
-function getStripe(): Stripe {
+function getStripe() {
     if (!stripeClient) {
         const key = process.env.STRIPE_SECRET_KEY;
         if (!key) {
             throw new Error('STRIPE_SECRET_KEY environment variable is required');
         }
         stripeClient = new Stripe(key, {
-            apiVersion: '2023-10-16' as any,
+            apiVersion: '2023-10-16',
         });
     }
     return stripeClient;
 }
 
 // In-memory token store for login
-const loginTokens = new Map<string, { token: string, expires: number }>();
+const loginTokens = new Map();
 
 // Helper function for resilient fetch
-async function fetchWithRetry(url: string, options: NodeFetchRequestInit = {}, retries = 3, backoff = 1000): Promise<NodeFetchResponse> {
+async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
     try {
         const response = await fetch(url, options);
         if (!response.ok && retries > 0) throw new Error(`Status ${response.status}`);
@@ -46,19 +46,17 @@ async function fetchWithRetry(url: string, options: NodeFetchRequestInit = {}, r
 }
 
 // Helper function to update system subscription status in Firebase RTDB
-async function updateUserSubscriptionStatus(userId: string, status: string, mpId: string, date: string | undefined, systemContext?: string) {
+async function updateUserSubscriptionStatus(userId, status, mpId, date, systemContext) {
     const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
     
-    // We update the global system settings, not the individual user
     let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
     if (dbSecret) {
         systemUrl += `?auth=${dbSecret}`;
     }
 
     try {
-        // Fetch current system subscription data
         const sysRes = await fetchWithRetry(systemUrl);
-        const sysData: any = await sysRes.json() || {};
+        const sysData = await sysRes.json() || {};
         
         if (sysData.lastPaymentId === mpId && status === 'active') {
             console.log(`Payment ${mpId} already processed, skipping update.`);
@@ -66,7 +64,7 @@ async function updateUserSubscriptionStatus(userId: string, status: string, mpId
         }
         
         console.log(`Updating subscription status for ${systemContext || 'Mistura'} to ${status} by user ${userId}`);
-        const updates: any = {
+        const updates = {
             lastPaymentId: mpId,
             lastPaymentDate: date || new Date().toISOString(),
             paidBy: userId,
@@ -86,7 +84,6 @@ async function updateUserSubscriptionStatus(userId: string, status: string, mpId
             if (currentExpiresAtStr) {
                 const currentExpiresAt = new Date(currentExpiresAtStr);
                 if (currentExpiresAt > newExpiresAt) {
-                    // If currently active, add 30 days to the existing expiration date
                     newExpiresAt = currentExpiresAt;
                 }
             }
@@ -106,7 +103,6 @@ async function updateUserSubscriptionStatus(userId: string, status: string, mpId
                 updates.isRecurring_Mistura = true;
             }
         } else if (status === 'past_due' || status === 'cancelled') {
-            // If subscription is cancelled or past due, we turn off auto-renewal flag
             if (systemContext === 'Mistura') {
                 updates.isRecurring_Mistura = false;
             } else if (systemContext && systemContext !== 'unknown') {
@@ -123,8 +119,7 @@ async function updateUserSubscriptionStatus(userId: string, status: string, mpId
         });
         
         if (!response.ok) {
-            console.error('Failed to update Firebase via REST. Status:', response.status, await response.text());
-            console.log('If you get 401 Unauthorized, add FIREBASE_DATABASE_SECRET to your environment variables.');
+            console.error('Failed to update Firebase via REST. Status:', response.status);
             return false;
         } else {
             console.log(`Updated system subscription for ${systemContext || 'Mistura'} to ${status} by user ${userId}`);
@@ -140,27 +135,15 @@ async function startServer() {
     const app = express();
     const PORT = Number(process.env.PORT) || 3000;
 
-    // Use JSON parser for all non-webhook routes
-    app.use(cors());
     app.use((req, res, next) => {
-        console.log(`Incoming request: ${req.method} ${req.path}`);
-        if (req.path === '/api/webhook') {
+        if (req.originalUrl === '/api/webhook') {
             next();
         } else {
-            express.json()(req, res, (err) => {
-                if (err) {
-                    console.error('JSON parsing error:', err);
-                    return res.status(400).json({ error: 'Invalid JSON body' });
-                }
-                next();
-            });
+            express.json()(req, res, next);
         }
     });
     
-    // Health check
-    app.get('/api/health', (req, res) => {
-        res.json({ status: 'ok', timestamp: new Date().toISOString() });
-    });
+    app.use(cors());
 
     // API Routes
     app.post('/api/send-login-token', async (req, res) => {
@@ -175,7 +158,7 @@ async function startServer() {
                 
                 try {
                     const trustRes = await fetchWithRetry(trustedUrl);
-                    const trustData: any = await trustRes.json();
+                    const trustData = await trustRes.json();
                     
                     if (trustData && trustData.expiresAt && Date.now() < trustData.expiresAt) {
                         console.log(`Device ${deviceId} is trusted for user ${uid}. Skipping token.`);
@@ -186,9 +169,8 @@ async function startServer() {
                 }
             }
 
-            // Generate a 6-digit random token
             const token = Math.floor(100000 + Math.random() * 900000).toString();
-            const expires = Date.now() + 10 * 60 * 1000; // 10 minutes from now
+            const expires = Date.now() + 10 * 60 * 1000;
 
             loginTokens.set(email.toLowerCase(), { token, expires });
 
@@ -245,7 +227,6 @@ async function startServer() {
                 ${message}
               </p>
               
-              <!-- Botão/Área de Código Fácil de Copiar -->
               <div style="margin: 0 auto 30px auto; max-width: 300px;">
                 <div style="background-color: #f59e0b; border-radius: 12px; padding: 20px; text-align: center; cursor: text;">
                   <span style="margin: 0; color: #0f172a; font-size: 36px; font-weight: 900; letter-spacing: 8px; font-family: monospace; display: block;">${token}</span>
@@ -283,7 +264,7 @@ async function startServer() {
             });
 
             res.json({ success: true, message: 'Token sent successfully' });
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error sending token:', error);
             res.status(500).json({ error: 'Failed to send token' });
         }
@@ -307,7 +288,6 @@ async function startServer() {
             return res.status(400).json({ success: false, error: 'Token incorreto' });
         }
 
-        // Token is valid
         loginTokens.delete(email.toLowerCase());
 
         // Register device as trusted for 12 hours
@@ -350,22 +330,20 @@ async function startServer() {
                 }
                 
                 if (userId && systemContext) {
-                    // Try to update via server
                     const updateSuccess = await updateUserSubscriptionStatus(
                         userId, 
                         'active', 
-                        session.subscription as string || session.id, 
+                        session.subscription || session.id, 
                         new Date().toISOString(), 
                         systemContext
                     );
                     
                     if (updateSuccess) {
-                        // Fetch the updated expiration date to send back
                         const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
                         let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
                         if (dbSecret) systemUrl += `?auth=${dbSecret}`;
                         const sysRes = await fetchWithRetry(systemUrl);
-                        const sysData: any = await sysRes.json() || {};
+                        const sysData = await sysRes.json() || {};
                         let expiresAt = sysData.expiresAt;
                         if (systemContext && systemContext !== 'Mistura') {
                             expiresAt = sysData[`expiresAt_${systemContext}`];
@@ -378,7 +356,7 @@ async function startServer() {
                             needsFrontendUpdate: true,
                             userId,
                             systemContext,
-                            mpId: session.subscription as string || session.id,
+                            mpId: session.subscription || session.id,
                             date: new Date().toISOString()
                         });
                     }
@@ -387,7 +365,7 @@ async function startServer() {
                 }
             }
             res.json({ success: false, status: session.payment_status, error: 'Pagamento ainda não consta como pago no Stripe.' });
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error verifying session:', error);
             res.status(500).json({ error: error.message });
         }
@@ -396,29 +374,19 @@ async function startServer() {
     app.post('/api/create_subscription_preference', async (req, res) => {
         try {
             const { email, userId, systemContext } = req.body;
-            
-            if (!userId) {
-                return res.status(400).json({ error: 'userId is required' });
-            }
-            if (!email) {
-                return res.status(400).json({ error: 'email is required' });
-            }
+            if (!userId || !email) return res.status(400).json({ error: 'userId and email are required' });
 
-            // Save the subscription email to Firebase
             const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
             let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
-            if (dbSecret) {
-                systemUrl += `?auth=${dbSecret}`;
-            }
+            if (dbSecret) systemUrl += `?auth=${dbSecret}`;
 
             try {
-                const updates: any = {};
+                const updates = {};
                 if (systemContext && systemContext !== 'unknown' && systemContext !== 'Mistura') {
                     updates[`subscription_email_${systemContext}`] = email;
                 } else {
                     updates.subscription_email = email;
                 }
-
                 await fetchWithRetry(systemUrl, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -429,110 +397,61 @@ async function startServer() {
             }
 
             const appUrl = process.env.APP_URL || 'http://localhost:3000';
-
-            // Create Stripe Checkout Session
-            const priceMap: any = {
+            const priceMap = {
                 'Mip': 'price_1TCiud2N7Ik4UR6lmc0cL6nK',
                 'Pg': 'price_1TCk6c2N7Ik4UR6lAIkjBTUb',
                 'Sv': 'price_1TCk6A2N7Ik4UR6l46SnE2KD'
             };
-            
-            const priceId = priceMap[systemContext] || 'price_1TCiud2N7Ik4UR6lmc0cL6nK'; // Default to MIP if not found
+            const priceId = priceMap[systemContext] || 'price_1TCiud2N7Ik4UR6lmc0cL6nK';
 
             const session = await getStripe().checkout.sessions.create({
                 payment_method_types: ['card'],
-                line_items: [
-                    {
-                        price: priceId,
-                        quantity: 1,
-                    },
-                ],
+                line_items: [{ price: priceId, quantity: 1 }],
                 mode: 'subscription',
                 success_url: `${appUrl}?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${appUrl}`,
                 customer_email: email,
                 client_reference_id: `BORA_VAN_SUB_${userId}_${systemContext || 'unknown'}`,
-                metadata: {
-                    userId: userId,
-                    systemContext: systemContext || 'unknown'
-                },
-                subscription_data: {
-                    metadata: {
-                        userId: userId,
-                        systemContext: systemContext || 'unknown'
-                    }
-                }
+                metadata: { userId, systemContext: systemContext || 'unknown' },
+                subscription_data: { metadata: { userId, systemContext: systemContext || 'unknown' } }
             });
 
-            res.json({
-                id: session.id,
-                url: session.url
-            });
-        } catch (error: any) {
+            res.json({ id: session.id, url: session.url });
+        } catch (error) {
             console.error('Error creating Stripe Checkout Session:', error);
-            res.status(500).json({ 
-                error: error.message || 'Erro interno ao criar preferência de assinatura'
-            });
+            res.status(500).json({ error: error.message || 'Erro interno ao criar preferência de assinatura' });
         }
     });
 
     app.post('/api/cancel-subscription', async (req, res) => {
         try {
             const { systemContext, userId } = req.body;
-            if (!systemContext || !userId) {
-                return res.status(400).json({ error: 'System context and userId are required' });
-            }
+            if (!systemContext || !userId) return res.status(400).json({ error: 'System context and userId are required' });
 
-            // Check if user is admin
             const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
             const userUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/users/${userId}.json${dbSecret ? `?auth=${dbSecret}` : ''}`;
             const userRes = await fetchWithRetry(userUrl);
-            const userData: any = await userRes.json();
+            const userData = await userRes.json();
             
-            if (!userData || userData.role !== 'admin') {
-                return res.status(403).json({ error: 'Unauthorized: Admin access required' });
-            }
+            if (!userData || userData.role !== 'admin') return res.status(403).json({ error: 'Unauthorized: Admin access required' });
 
-            // Fetch current system subscription data to get the subscription ID
             let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
-            if (dbSecret) {
-                systemUrl += `?auth=${dbSecret}`;
-            }
-
+            if (dbSecret) systemUrl += `?auth=${dbSecret}`;
             const sysRes = await fetchWithRetry(systemUrl);
-            const sysData: any = await sysRes.json() || {};
-            
-            // Try to find the subscription ID for the specific system
+            const sysData = await sysRes.json() || {};
             const subscriptionId = systemContext === 'Mistura' ? sysData.lastPaymentId : (sysData[`lastPaymentId_${systemContext}`] || sysData.lastPaymentId);
 
-            if (!subscriptionId) {
-                return res.status(404).json({ error: 'Subscription ID not found' });
-            }
+            if (!subscriptionId) return res.status(404).json({ error: 'Subscription ID not found' });
 
-            // Cancel on Stripe
             try {
                 await getStripe().subscriptions.cancel(subscriptionId);
-            } catch (stripeError: any) {
-                console.warn(`Stripe cancellation failed for ${subscriptionId}: ${stripeError.message}. Proceeding to update Firebase.`);
-                // If the error is that the subscription is already cancelled or not found, we can proceed.
-                if (stripeError.type !== 'StripeInvalidRequestError' && 
-                    !stripeError.message.includes('already canceled') && 
-                    !stripeError.message.includes('No such subscription')) {
-                    throw stripeError;
-                }
+            } catch (stripeError) {
+                console.warn(`Stripe cancellation failed for ${subscriptionId}: ${stripeError.message}`);
             }
 
-            // Update Firebase
-            await updateUserSubscriptionStatus(
-                userId,
-                'cancelled',
-                subscriptionId,
-                new Date().toISOString(),
-                systemContext
-            );
-
+            await updateUserSubscriptionStatus(userId, 'cancelled', subscriptionId, new Date().toISOString(), systemContext);
             res.json({ success: true });
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error cancelling subscription:', error);
             res.status(500).json({ error: error.message });
         }
@@ -541,32 +460,17 @@ async function startServer() {
     app.post('/api/create-pix-payment', async (req, res) => {
         try {
             const { email, userId, systemContext, amount } = req.body;
-            
-            if (!userId || !amount) {
-                return res.status(400).json({ error: 'userId and amount are required' });
-            }
+            if (!userId || !amount) return res.status(400).json({ error: 'userId and amount are required' });
 
-            // Create Stripe PaymentIntent for PIX
-            console.log('Creating PIX PaymentIntent for amount:', amount);
             const paymentIntent = await getStripe().paymentIntents.create({
-                amount: amount, // amount in cents
+                amount: amount,
                 currency: 'brl',
                 payment_method_types: ['pix'],
-                metadata: {
-                    userId,
-                    systemContext: systemContext || 'unknown',
-                    type: 'pix_payment' // To distinguish from subscription
-                },
+                metadata: { userId, systemContext: systemContext || 'unknown', type: 'pix_payment' },
                 receipt_email: email
             });
             
-            // Confirm the PaymentIntent
-            const confirmedIntent = await getStripe().paymentIntents.confirm(
-                paymentIntent.id,
-                { payment_method_data: { type: 'pix' } }
-            );
-
-            console.log('PaymentIntent confirmed:', JSON.stringify(confirmedIntent, null, 2));
+            const confirmedIntent = await getStripe().paymentIntents.confirm(paymentIntent.id, { payment_method_data: { type: 'pix' } });
 
             if (confirmedIntent.next_action && confirmedIntent.next_action.pix_display_qr_code) {
                 res.json({
@@ -577,45 +481,23 @@ async function startServer() {
             } else {
                 res.status(500).json({ error: 'Failed to generate PIX QR code' });
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error creating PIX PaymentIntent:', error);
             res.status(500).json({ error: error.message });
         }
     });
 
-    // Stripe Webhook
     app.post('/api/webhook', express.raw({type: 'application/json'}), async (req, res) => {
-        const sig = req.headers['stripe-signature'];
-        // In a real app, you should verify the webhook signature using endpoint secret
-        // const endpointSecret = "whsec_...";
-        
-        let event;
-
         try {
-            // For now, we just parse the body without signature verification since we don't have the webhook secret
-            event = JSON.parse(req.body.toString());
-        } catch (err: any) {
-            console.error(`Webhook Error: ${err.message}`);
-            return res.status(400).send(`Webhook Error: ${err.message}`);
-        }
-
-        // Handle the event
-        try {
+            const event = JSON.parse(req.body.toString());
             switch (event.type) {
                 case 'payment_intent.succeeded': {
                     const paymentIntent = event.data.object;
                     if (paymentIntent.metadata?.type === 'pix_payment') {
                         const userId = paymentIntent.metadata.userId;
                         const systemContext = paymentIntent.metadata.systemContext;
-                        
                         if (userId && systemContext) {
-                            await updateUserSubscriptionStatus(
-                                userId, 
-                                'active', 
-                                paymentIntent.id, 
-                                new Date().toISOString(), 
-                                systemContext
-                            );
+                            await updateUserSubscriptionStatus(userId, 'active', paymentIntent.id, new Date().toISOString(), systemContext);
                         }
                     }
                     break;
@@ -624,43 +506,25 @@ async function startServer() {
                     const session = event.data.object;
                     let userId = session.metadata?.userId;
                     let systemContext = session.metadata?.systemContext;
-                    
                     if (!userId && session.client_reference_id && session.client_reference_id.startsWith('BORA_VAN_SUB_')) {
                         const parts = session.client_reference_id.split('_');
                         userId = parts[3];
                         systemContext = parts[4];
                     }
-                    
                     if (userId && systemContext) {
-                        await updateUserSubscriptionStatus(
-                            userId, 
-                            'active', 
-                            session.subscription as string || session.id, 
-                            new Date().toISOString(), 
-                            systemContext
-                        );
+                        await updateUserSubscriptionStatus(userId, 'active', session.subscription || session.id, new Date().toISOString(), systemContext);
                     }
                     break;
                 }
                 case 'invoice.payment_succeeded': {
                     const invoice = event.data.object;
-                    // Ignore the first payment because checkout.session.completed handles it
-                    if (invoice.billing_reason === 'subscription_create') {
-                        break;
-                    }
+                    if (invoice.billing_reason === 'subscription_create') break;
                     if (invoice.subscription) {
-                        const subscription = await getStripe().subscriptions.retrieve(invoice.subscription as string);
+                        const subscription = await getStripe().subscriptions.retrieve(invoice.subscription);
                         const userId = subscription.metadata.userId;
                         const systemContext = subscription.metadata.systemContext;
-                        
                         if (userId && systemContext) {
-                            await updateUserSubscriptionStatus(
-                                userId, 
-                                'active', 
-                                invoice.id, 
-                                new Date().toISOString(), 
-                                systemContext
-                            );
+                            await updateUserSubscriptionStatus(userId, 'active', invoice.id, new Date().toISOString(), systemContext);
                         }
                     }
                     break;
@@ -669,22 +533,12 @@ async function startServer() {
                     const subscription = event.data.object;
                     const userId = subscription.metadata.userId;
                     const systemContext = subscription.metadata.systemContext;
-                    
                     if (userId && systemContext) {
-                        await updateUserSubscriptionStatus(
-                            userId, 
-                            'cancelled', 
-                            subscription.id, 
-                            new Date().toISOString(), 
-                            systemContext
-                        );
+                        await updateUserSubscriptionStatus(userId, 'cancelled', subscription.id, new Date().toISOString(), systemContext);
                     }
                     break;
                 }
-                default:
-                    console.log(`Unhandled event type ${event.type}`);
             }
-            
             res.send();
         } catch (error) {
             console.error('Webhook processing error:', error);
@@ -692,74 +546,24 @@ async function startServer() {
         }
     });
 
-    app.post('/api/gemini', async (req, res) => {
-        console.log('POST /api/gemini - Request received');
-        try {
-            const { prompt } = req.body;
-            const apiKey = process.env.GEMINI_API_KEY;
-            
-            if (!apiKey) {
-                console.error('GEMINI_API_KEY is missing');
-                return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
-            }
-            
-            if (!prompt) {
-                console.error('Prompt is missing in request body');
-                return res.status(400).json({ error: "Prompt is required." });
-            }
-            
-            console.log('Calling Gemini API with prompt length:', prompt.length);
-            const ai = new GoogleGenAI({ apiKey });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    systemInstruction: "You are a data extraction assistant. Your task is to extract passenger information from the provided text and return it as a valid JSON array of objects. Do not include any other text or explanation. If the input is too large, only extract the first few passengers to stay within limits.",
-                    responseMimeType: "application/json",
-                    maxOutputTokens: 2048,
-                }
-            });
-            
-            console.log('Gemini API response received successfully');
-            res.json({ text: response.text || "" });
-        } catch (error: any) {
-            console.error('Error calling Gemini API:', error);
-            // Ensure we return JSON even on error
-            res.status(500).json({ 
-                error: error.message || 'Internal server error',
-                details: error.stack || 'No stack trace available'
-            });
-        }
-    });
-
     app.post('/api/sync-subscription', async (req, res) => {
-        console.log('POST /api/sync-subscription - Body:', req.body);
         try {
             const { userId, systemContext } = req.body;
-            if (!userId || !systemContext) {
-                return res.status(400).json({ error: 'userId and systemContext are required' });
-            }
+            if (!userId || !systemContext) return res.status(400).json({ error: 'userId and systemContext are required' });
 
-            // Escape single quotes for Stripe query
-            const safeUserId = userId.replace(/'/g, "\\'");
-            const safeSystemContext = systemContext.replace(/'/g, "\\'");
-
-            // Search for active subscriptions for this user and system
             const subscriptions = await getStripe().subscriptions.search({
-                query: `status:'active' AND metadata['userId']:'${safeUserId}' AND metadata['systemContext']:'${safeSystemContext}'`,
+                query: `status:'active' AND metadata['userId']:'${userId}' AND metadata['systemContext']:'${systemContext}'`,
                 limit: 1
             });
 
             if (subscriptions.data.length > 0) {
                 const sub = subscriptions.data[0];
-                
-                // Update Firebase
                 const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
                 let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
                 if (dbSecret) systemUrl += `?auth=${dbSecret}`;
 
-                const updates: any = {};
-                const newExpiresAt = new Date((sub as any).current_period_end * 1000).toISOString();
+                const updates = {};
+                const newExpiresAt = new Date(sub.current_period_end * 1000).toISOString();
 
                 if (systemContext === 'Mistura') {
                     updates.expiresAt = newExpiresAt;
@@ -779,42 +583,25 @@ async function startServer() {
 
                 res.json({ success: true, status: 'active', expiresAt: newExpiresAt });
             } else {
-                // No active subscription found, ensure auto-renewal is off
                 const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
                 let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
                 if (dbSecret) systemUrl += `?auth=${dbSecret}`;
-
-                const updates: any = {};
-                if (systemContext === 'Mistura') {
-                    updates.isRecurring_Mistura = false;
-                } else {
-                    updates[`isRecurring_${systemContext}`] = false;
-                }
-
+                const updates = {};
+                if (systemContext === 'Mistura') updates.isRecurring_Mistura = false;
+                else updates[`isRecurring_${systemContext}`] = false;
                 await fetchWithRetry(systemUrl, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updates)
                 });
-
                 res.json({ success: false, status: 'not_found' });
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error syncing subscription:', error);
             res.status(500).json({ error: error.message });
         }
     });
 
-    // Error handler for API routes
-    app.use('/api', (err: any, req: any, res: any, next: any) => {
-        console.error('Unhandled API error:', err);
-        res.status(err.status || 500).json({
-            error: err.message || 'Internal Server Error',
-            path: req.path
-        });
-    });
-
-    // Vite Middleware (Development)
     if (process.env.NODE_ENV !== 'production') {
         const vite = await createViteServer({
             server: { middlewareMode: true },
@@ -822,19 +609,16 @@ async function startServer() {
         });
         app.use(vite.middlewares);
     } else {
-        // Production Static Serving
-        app.use(express.static(path.resolve(__dirname, 'dist')));
+        const distPath = path.resolve(__dirname, 'dist');
+        app.use(express.static(distPath));
         app.get('*', (req, res) => {
-            res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+            res.sendFile(path.resolve(distPath, 'index.html'));
         });
     }
 
     app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`Server running on port ${PORT}`);
     });
 }
 
-startServer().catch(err => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-});
+startServer();
