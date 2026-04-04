@@ -24,7 +24,7 @@ export default function Agendamentos({ data, theme, setFormData, setModal, dbOp,
 
     const handleCreateTripFromPass = (p: any) => {
         setFormData({ driverId: '', time: p.time, date: p.date });
-        setSuggestedTrip({ driver: { name: 'Selecione', capacity: 0 }, time: p.time, passengers: [p], occupancy: parseInt(p.passengerCount || 1), date: p.date });
+        setSuggestedTrip({ driver: { name: 'Selecione', capacity: 0, id: '' }, time: p.time, passengers: [p], occupancy: parseInt(p.passengerCount || 1), date: p.date });
         setEditingTripId(null); setModal('trip');
     };
 
