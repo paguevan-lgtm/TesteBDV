@@ -175,15 +175,42 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
     // Sync subscription status on mount
     useEffect(() => {
         if (user && user.uid && systemContext) {
-            fetch('/api/sync-subscription', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.uid, systemContext })
-            }).then(res => {
-                if (!res.ok) console.warn("Sync subscription failed with status:", res.status);
-            }).catch(err => console.error("Sync error:", err));
+            let retries = 3;
+            const syncSubscription = () => {
+                console.log(`Attempting to sync subscription for user ${user.uid} in ${systemContext}...`);
+                fetch('/api/sync-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.uid, systemContext })
+                }).then(res => {
+                    if (!res.ok) {
+                        res.json().then(data => {
+                            console.warn("Sync subscription failed:", data.error || res.status);
+                        }).catch(() => {
+                            console.warn("Sync subscription failed with status:", res.status);
+                        });
+                    }
+                }).catch(err => {
+                    console.error("Sync error (Network) details:", {
+                        message: err.message,
+                        name: err.name,
+                        stack: err.stack,
+                        userUid: user.uid,
+                        systemContext
+                    });
+                    if (retries > 0) {
+                        retries--;
+                        console.log(`Retrying sync in 2s... (${retries} retries left)`);
+                        setTimeout(syncSubscription, 2000);
+                    }
+                });
+            };
+
+            // Pequeno delay para garantir que o servidor está pronto
+            const timer = setTimeout(syncSubscription, 3000);
+            return () => clearTimeout(timer);
         }
-    }, [user.uid, systemContext]);
+    }, [user?.uid, systemContext]);
 
     // Admin Bypass (Breno never gets locked)
     const isAdmin = user.username === 'Breno';

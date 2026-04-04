@@ -126,7 +126,6 @@ const AppContent = () => {
     const [viewedPranchetaData, setViewedPranchetaData] = useState<any>({});
     const [duePranchetaData, setDuePranchetaData] = useState<any>({});
     const [themeKey, setThemeKey] = useState('default');
-    const [geminiKey, setGeminiKey] = useState(localStorage.getItem('nexflow_gemini_key') || '');
     const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('nexflow_sound_enabled') !== 'false');
     const [popupsEnabled, setPopupsEnabled] = useState(() => localStorage.getItem('nexflow_popups_enabled') !== 'false');
     
@@ -1895,7 +1894,7 @@ const AppContent = () => {
         if(user) localStorage.setItem(`tour_seen_${user.username}`, 'true');
     };
     
-    const saveApiKey = (k: string) => { setGeminiKey(k); localStorage.setItem('nexflow_gemini_key', k); notify("API Key salva!", "success"); };
+    const saveApiKey = (k: string) => { localStorage.setItem('nexflow_gemini_key', k); notify("API Key salva!", "success"); };
     const blockIp = () => { if(!ipToBlock) return notify('Digite um IP', 'error'); dbOp('create', 'blocked_ips', { ip: ipToBlock, reason: ipReason || 'Manual', blockedBy: user.username }); setIpToBlock(''); setIpReason(''); notify('IP Bloqueado!', "delete"); };
     const saveIpLabel = (ip: string, label: string) => { if(!ip) return; const safeIp = ip.replace(/\./g, '_'); db.ref(`ip_labels/${safeIp}`).set(label); };
     
@@ -2624,13 +2623,12 @@ const AppContent = () => {
 
     const handleSmartCreate = async () => {
         if(!aiInput.trim()) return notify("Diga algo!", "error");
-        if(!geminiKey) return notify("Configure a API Key nas configurações para usar o Cadastro Mágico.", "error");
         setAiLoading(true);
         try {
             const bairros = (systemContext === 'Mip' ? BAIRROS_MIP : BAIRROS).join(',');
             const prompt = `Extraia um ARRAY JSON de: "${aiInput}". Cada objeto deve ter os campos: name, phone, neighborhood (de: ${bairros}), address, reference, passengerCount (int, pad 1), luggageCount (int, pad 0), payment ("Dinheiro", "Pix", "Cartão"), time (HH:mm). Se faltar use null.`;
             
-            const res = await callGemini(prompt, geminiKey);
+            const res = await callGemini(prompt);
             
             if (!res) throw new Error("A IA não retornou nada. Verifique sua chave API.");
 
@@ -3641,9 +3639,6 @@ Agradecemos pela atenção e desejamos um bom trabalho a todos!`;
                                 theme={theme} 
                                 restartTour={restartTour} 
                                 setAiModal={setAiModal} 
-                                geminiKey={geminiKey} 
-                                setGeminiKey={setGeminiKey} 
-                                saveApiKey={saveApiKey} 
                                 ipToBlock={ipToBlock} 
                                 setIpToBlock={setIpToBlock} 
                                 blockIp={blockIp} 

@@ -1,6 +1,5 @@
 
 import { INITIAL_SP_LIST, BAIRROS, BAIRROS_MIP } from './constants';
-import { GoogleGenAI } from "@google/genai";
 
 export const getWeekNumber = (date: Date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -190,20 +189,27 @@ export const generateTripListText = (passengers: any[], driverName: string, time
     return `VIAGEM ${formatTime(time)} - ${driverName}\n\n` + sorted.map(p=> `• ${p.name} - ${p.neighborhood}\n  ${p.address} (${p.reference || ''})`).join('\n\n');
 };
 
-export const callGemini = async (prompt: string, apiKey: string) => {
-    if (!apiKey) throw new Error("Chave API Gemini não configurada!");
-    
-    // Fix: Using GoogleGenAI SDK instead of direct fetch
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-preview',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
+export const callGemini = async (prompt: string) => {
+    try {
+        const response = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
-    });
-    
-    return response.text || "";
+        
+        const data = await response.json();
+        return data.text || "";
+    } catch (error: any) {
+        console.error("Error calling server-side Gemini API:", error);
+        throw error;
+    }
 };
 
 export const compressImage = (file: File): Promise<string> => {

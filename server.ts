@@ -5,6 +5,8 @@ import Stripe from 'stripe';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
+import fetch from 'node-fetch';
+import { GoogleGenAI } from "@google/genai";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -139,15 +141,19 @@ async function startServer() {
     const PORT = Number(process.env.PORT) || 3000;
 
     // Use JSON parser for all non-webhook routes
+    app.use(cors());
     app.use((req, res, next) => {
-        if (req.originalUrl === '/api/webhook') {
+        if (req.path === '/api/webhook') {
             next();
         } else {
             express.json()(req, res, next);
         }
     });
     
-    app.use(cors());
+    // Health check
+    app.get('/api/health', (req, res) => {
+        res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    });
 
     // API Routes
     app.post('/api/send-login-token', async (req, res) => {
@@ -679,16 +685,50 @@ async function startServer() {
         }
     });
 
+    app.post('/api/gemini', async (req, res) => {
+        try {
+            const { prompt } = req.body;
+            const apiKey = process.env.GEMINI_API_KEY;
+            
+            if (!apiKey) {
+                return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+            }
+            
+            if (!prompt) {
+                return res.status(400).json({ error: "Prompt is required." });
+            }
+            
+            const ai = new GoogleGenAI({ apiKey });
+            const response = await ai.models.generateContent({
+                model: 'gemini-3.1-flash-lite-preview',
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                }
+            });
+            
+            res.json({ text: response.text || "" });
+        } catch (error: any) {
+            console.error('Error calling Gemini API:', error);
+            res.status(500).json({ error: error.message || 'Internal server error' });
+        }
+    });
+
     app.post('/api/sync-subscription', async (req, res) => {
+        console.log('POST /api/sync-subscription - Body:', req.body);
         try {
             const { userId, systemContext } = req.body;
             if (!userId || !systemContext) {
                 return res.status(400).json({ error: 'userId and systemContext are required' });
             }
 
+            // Escape single quotes for Stripe query
+            const safeUserId = userId.replace(/'/g, "\\'");
+            const safeSystemContext = systemContext.replace(/'/g, "\\'");
+
             // Search for active subscriptions for this user and system
             const subscriptions = await getStripe().subscriptions.search({
-                query: `status:'active' AND metadata['userId']:'${userId}' AND metadata['systemContext']:'${systemContext}'`,
+                query: `status:'active' AND metadata['userId']:'${safeUserId}' AND metadata['systemContext']:'${safeSystemContext}'`,
                 limit: 1
             });
 
@@ -767,4 +807,7 @@ async function startServer() {
     });
 }
 
-startServer();
+startServer().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+});
