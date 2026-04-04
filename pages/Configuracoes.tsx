@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../components/SubscriptionLock';
 import { db } from '../firebase';
 
-export default function Configuracoes({ user, theme, restartTour, setAiModal, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive, pranchetaValue, setPranchetaValue, soundEnabled, setSoundEnabled, popupsEnabled, setPopupsEnabled }: any) {
+export default function Configuracoes({ user, theme, restartTour, setAiModal, geminiKey, setGeminiKey, saveApiKey, ipToBlock, setIpToBlock, blockIp, data, del, ipHistory, ipLabels, saveIpLabel, changeTheme, themeKey, dbOp, notify, showAlert, requestConfirm, setView, daysRemaining, isNearExpiration, systemContext, isRecurringActive, pranchetaValue, setPranchetaValue, soundEnabled, setSoundEnabled, popupsEnabled, setPopupsEnabled }: any) {
     const { logout } = useAuth();
     const { triggerEarlyRenewal } = useSubscription();
     
@@ -892,7 +892,17 @@ export default function Configuracoes({ user, theme, restartTour, setAiModal, ip
                         {/* IA CONFIG */}
                         <div className={`${theme.card} p-6 rounded-2xl border ${theme.border} shadow-lg`}>
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Icons.Stars className={theme.accent}/> Inteligência Artificial</h3>
-                            <p className="text-xs opacity-60 mb-4">O Cadastro Mágico e automações de voz estão habilitados via servidor.</p>
+                            <p className="text-xs opacity-60 mb-4">Habilite o Cadastro Mágico e automações de voz com sua chave Gemini.</p>
+                            <div className="space-y-3">
+                                <input 
+                                    type="password" 
+                                    className={`w-full ${theme.inner} border ${theme.divider} rounded-xl px-4 py-3 text-sm outline-none focus:border-opacity-50 transition-colors`} 
+                                    placeholder="API Key do Google Gemini" 
+                                    value={geminiKey} 
+                                    onChange={(e:any)=>setGeminiKey(e.target.value)} 
+                                />
+                                <Button theme={theme} onClick={()=>saveApiKey(geminiKey)} variant="primary" className="w-full">Salvar Chave API</Button>
+                            </div>
                         </div>
 
                         {/* FERRAMENTAS */}

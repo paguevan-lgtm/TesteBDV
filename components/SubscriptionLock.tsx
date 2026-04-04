@@ -175,9 +175,8 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
     // Sync subscription status on mount
     useEffect(() => {
         if (user && user.uid && systemContext) {
-            let retries = 3;
-            const syncSubscription = () => {
-                console.log(`Attempting to sync subscription for user ${user.uid} in ${systemContext}...`);
+            // Pequeno delay para garantir que o servidor está pronto
+            const timer = setTimeout(() => {
                 fetch('/api/sync-subscription', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -191,23 +190,9 @@ export const SubscriptionLock: React.FC<SubscriptionLockProps> = ({ user, system
                         });
                     }
                 }).catch(err => {
-                    console.error("Sync error (Network) details:", {
-                        message: err.message,
-                        name: err.name,
-                        stack: err.stack,
-                        userUid: user.uid,
-                        systemContext
-                    });
-                    if (retries > 0) {
-                        retries--;
-                        console.log(`Retrying sync in 2s... (${retries} retries left)`);
-                        setTimeout(syncSubscription, 2000);
-                    }
+                    console.error("Sync error (Network):", err);
                 });
-            };
-
-            // Pequeno delay para garantir que o servidor está pronto
-            const timer = setTimeout(syncSubscription, 3000);
+            }, 1000);
             return () => clearTimeout(timer);
         }
     }, [user?.uid, systemContext]);

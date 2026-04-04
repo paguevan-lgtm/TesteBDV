@@ -5,8 +5,6 @@ import Stripe from 'stripe';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
-import fetch, { RequestInit as NodeFetchRequestInit, Response as NodeFetchResponse } from 'node-fetch';
-import { GoogleGenAI } from "@google/genai";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,7 +28,7 @@ function getStripe(): Stripe {
 const loginTokens = new Map<string, { token: string, expires: number }>();
 
 // Helper function for resilient fetch
-async function fetchWithRetry(url: string, options: NodeFetchRequestInit = {}, retries = 3, backoff = 1000): Promise<NodeFetchResponse> {
+async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 3, backoff = 1000): Promise<Response> {
     try {
         const response = await fetch(url, options);
         if (!response.ok && retries > 0) throw new Error(`Status ${response.status}`);
@@ -58,7 +56,7 @@ async function updateUserSubscriptionStatus(userId: string, status: string, mpId
     try {
         // Fetch current system subscription data
         const sysRes = await fetchWithRetry(systemUrl);
-        const sysData: any = await sysRes.json() || {};
+        const sysData = await sysRes.json() || {};
         
         if (sysData.lastPaymentId === mpId && status === 'active') {
             console.log(`Payment ${mpId} already processed, skipping update.`);
@@ -141,21 +139,15 @@ async function startServer() {
     const PORT = Number(process.env.PORT) || 3000;
 
     // Use JSON parser for all non-webhook routes
-    app.use(cors());
     app.use((req, res, next) => {
-        console.log(`Incoming request: ${req.method} ${req.path}`);
-        if (req.path === '/api/webhook') {
+        if (req.originalUrl === '/api/webhook') {
             next();
         } else {
-            express.json()(req, res, (err) => {
-                if (err) {
-                    console.error('JSON parsing error:', err);
-                    return res.status(400).json({ error: 'Invalid JSON body' });
-                }
-                next();
-            });
+            express.json()(req, res, next);
         }
     });
+    
+    app.use(cors());
     
     // Health check
     app.get('/api/health', (req, res) => {
@@ -175,7 +167,7 @@ async function startServer() {
                 
                 try {
                     const trustRes = await fetchWithRetry(trustedUrl);
-                    const trustData: any = await trustRes.json();
+                    const trustData = await trustRes.json();
                     
                     if (trustData && trustData.expiresAt && Date.now() < trustData.expiresAt) {
                         console.log(`Device ${deviceId} is trusted for user ${uid}. Skipping token.`);
@@ -365,7 +357,7 @@ async function startServer() {
                         let systemUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/system_settings/subscription.json`;
                         if (dbSecret) systemUrl += `?auth=${dbSecret}`;
                         const sysRes = await fetchWithRetry(systemUrl);
-                        const sysData: any = await sysRes.json() || {};
+                        const sysData = await sysRes.json() || {};
                         let expiresAt = sysData.expiresAt;
                         if (systemContext && systemContext !== 'Mistura') {
                             expiresAt = sysData[`expiresAt_${systemContext}`];
@@ -487,7 +479,7 @@ async function startServer() {
             const dbSecret = process.env.FIREBASE_DATABASE_SECRET;
             const userUrl = `https://lotacao-753a1-default-rtdb.firebaseio.com/users/${userId}.json${dbSecret ? `?auth=${dbSecret}` : ''}`;
             const userRes = await fetchWithRetry(userUrl);
-            const userData: any = await userRes.json();
+            const userData = await userRes.json();
             
             if (!userData || userData.role !== 'admin') {
                 return res.status(403).json({ error: 'Unauthorized: Admin access required' });
@@ -500,7 +492,7 @@ async function startServer() {
             }
 
             const sysRes = await fetchWithRetry(systemUrl);
-            const sysData: any = await sysRes.json() || {};
+            const sysData = await sysRes.json() || {};
             
             // Try to find the subscription ID for the specific system
             const subscriptionId = systemContext === 'Mistura' ? sysData.lastPaymentId : (sysData[`lastPaymentId_${systemContext}`] || sysData.lastPaymentId);
@@ -692,61 +684,16 @@ async function startServer() {
         }
     });
 
-    app.post('/api/gemini', async (req, res) => {
-        console.log('POST /api/gemini - Request received');
-        try {
-            const { prompt } = req.body;
-            const apiKey = process.env.GEMINI_API_KEY;
-            
-            if (!apiKey) {
-                console.error('GEMINI_API_KEY is missing');
-                return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
-            }
-            
-            if (!prompt) {
-                console.error('Prompt is missing in request body');
-                return res.status(400).json({ error: "Prompt is required." });
-            }
-            
-            console.log('Calling Gemini API with prompt length:', prompt.length);
-            const ai = new GoogleGenAI({ apiKey });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    systemInstruction: "You are a data extraction assistant. Your task is to extract passenger information from the provided text and return it as a valid JSON array of objects. Do not include any other text or explanation. If the input is too large, only extract the first few passengers to stay within limits.",
-                    responseMimeType: "application/json",
-                    maxOutputTokens: 2048,
-                }
-            });
-            
-            console.log('Gemini API response received successfully');
-            res.json({ text: response.text || "" });
-        } catch (error: any) {
-            console.error('Error calling Gemini API:', error);
-            // Ensure we return JSON even on error
-            res.status(500).json({ 
-                error: error.message || 'Internal server error',
-                details: error.stack || 'No stack trace available'
-            });
-        }
-    });
-
     app.post('/api/sync-subscription', async (req, res) => {
-        console.log('POST /api/sync-subscription - Body:', req.body);
         try {
             const { userId, systemContext } = req.body;
             if (!userId || !systemContext) {
                 return res.status(400).json({ error: 'userId and systemContext are required' });
             }
 
-            // Escape single quotes for Stripe query
-            const safeUserId = userId.replace(/'/g, "\\'");
-            const safeSystemContext = systemContext.replace(/'/g, "\\'");
-
             // Search for active subscriptions for this user and system
             const subscriptions = await getStripe().subscriptions.search({
-                query: `status:'active' AND metadata['userId']:'${safeUserId}' AND metadata['systemContext']:'${safeSystemContext}'`,
+                query: `status:'active' AND metadata['userId']:'${userId}' AND metadata['systemContext']:'${systemContext}'`,
                 limit: 1
             });
 
@@ -805,15 +752,6 @@ async function startServer() {
         }
     });
 
-    // Error handler for API routes
-    app.use('/api', (err: any, req: any, res: any, next: any) => {
-        console.error('Unhandled API error:', err);
-        res.status(err.status || 500).json({
-            error: err.message || 'Internal Server Error',
-            path: req.path
-        });
-    });
-
     // Vite Middleware (Development)
     if (process.env.NODE_ENV !== 'production') {
         const vite = await createViteServer({
@@ -834,7 +772,4 @@ async function startServer() {
     });
 }
 
-startServer().catch(err => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-});
+startServer();
